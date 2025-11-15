@@ -19,12 +19,15 @@ classifiers = [
     
 ]
 dependencies = [
+    "huggingface-hub>=1.1.4",
     "loguru",
     "mkdocs",
     "pip",
+    "polars>=1.35.2",
     "pytest",
     "python-dotenv",
     "ruff",
+    "scikit-learn>=1.7.2",
     "tqdm",
     "typer",
 ]
