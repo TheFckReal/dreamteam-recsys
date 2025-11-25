@@ -21,7 +21,7 @@ def download(
     token: Annotated[
         Optional[str],
         typer.Option(
-            help="Hugging Face token. If not provided,"
+            help="Hugging Face token. If not provided, "
             "will be taken from HF_TOKEN environment variable.",
             envvar="HF_TOKEN",
         ),
