@@ -19,6 +19,8 @@ classifiers = [
     
 ]
 dependencies = [
+    "cachetools>=6.2.4",
+    "fastapi[standard]>=0.124.4",
     "huggingface-hub>=1.1.4",
     "loguru",
     "mkdocs",
