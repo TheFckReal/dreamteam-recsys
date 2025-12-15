@@ -13,7 +13,9 @@ app = typer.Typer()
 def main(
     user_id: int,
     item_id: int,
-    model_params: dict | None = None,
+    action_type: str,
+    subdomain: str,
+    os: str,
     model_key: ModelsType = typer.Option(..., help="Key of the model to use (e.g. 'dummy')"),
 ):
     """
@@ -25,7 +27,9 @@ def main(
     input_data = InferenceData(
         user_id=user_id,
         item_id=item_id,
-        model_params=model_params,
+        action_type=cast(Literal["view", "click", "clickout", "like"], action_type),
+        subdomain=cast(Literal["u2i", "i2i", "catalog", "search", "other"], subdomain),
+        os=cast(Literal["android", "ios", "other"], os),
     )
 
     logger.info(f"Initializing model '{model_key}'...")
