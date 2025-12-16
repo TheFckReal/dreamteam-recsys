@@ -107,7 +107,6 @@ class SVDModel(InferenceModel):
         self.user_to_idx = None
         self.item_to_idx = None
         self._is_loaded = False
-        # Путь к артефактам (папка, куда ты положила .pkl файлы)
         self.artifacts_path = Path("src/artifacts")
 
     def loads(self) -> None:
