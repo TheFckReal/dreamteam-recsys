@@ -4,7 +4,7 @@ from loguru import logger
 from tqdm import tqdm
 import typer
 
-from src.config import MODELS_DIR, PROCESSED_DATA_DIR
+from src.config import MODELS_DIR, PROCESSED_DATA_DIR, SVD_DIR
 
 import pickle
 import numpy as np
@@ -32,7 +32,7 @@ def main(
         ..., help="Путь к файлу с событиями"
     ),
     artifacts_dir: Path = typer.Option(
-        "src/artifacts", help="Папка для сохранения артефактов модели"
+        SVD_DIR, help="Папка для сохранения артефактов модели"
     ),
     n_components: int = typer.Option(
         20, help="Количество компонент для SVD"

@@ -190,4 +190,4 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
-src/artifacts/
+models/svd_artifacts/

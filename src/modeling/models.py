@@ -7,6 +7,7 @@ import polars as pl
 
 from src.modeling.interface import InferenceModel
 from src.modeling.sharing import InferenceData
+from src.config import SVD_DIR
 
 import pickle
 import numpy as np
@@ -107,7 +108,7 @@ class SVDModel(InferenceModel):
         self.user_to_idx = None
         self.item_to_idx = None
         self._is_loaded = False
-        self.artifacts_path = Path("src/artifacts")
+        self.artifacts_path = Path(SVD_DIR)
 
     def loads(self) -> None:
         """Загрузка весов."""
