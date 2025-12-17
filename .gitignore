@@ -1,8 +1,5 @@
 # Data
-/data/external/
-/data/interim/
-/data/processed/
-/data/raw/
+/data/
 
 # Mac OS-specific storage files
 .DS_Store
@@ -194,6 +191,3 @@ cython_debug/
 .pypirc
 
 models/svd_artifacts/
-
-# Database files
-.db
