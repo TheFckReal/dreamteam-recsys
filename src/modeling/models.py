@@ -146,7 +146,7 @@ class SVDModel(InferenceModel):
             return 0.0
 
         u_vec = self.user_features[u_idx]
-        i_vec = self.item_features[:, i_idx]
+        i_vec = self.item_features[i_idx]
 
         score = np.dot(u_vec, i_vec)
 

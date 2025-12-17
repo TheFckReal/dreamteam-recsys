@@ -113,7 +113,7 @@ def create_target(
         )
     else:
         result_df = _events_df.join(
-            actions_count.with_columns(target=target_process_expr[target_type], on="action_type")
+            actions_count.with_columns(target=target_process_expr[target_type]), on="action_type"
         )
     if isinstance(events_df, pl.LazyFrame):
         return result_df
