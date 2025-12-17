@@ -1,4 +1,4 @@
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Union
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -31,7 +31,7 @@ class ModelInput(BaseModel):
     """Data Transfer Object (DTO) for prediction request."""
 
     user_id: int
-    item_id: int
+    item_id: Union[str, int]
     action_type: Literal["view", "click", "clickout", "like"]
     subdomain: Literal["u2i", "i2i", "catalog", "search", "other"]
     os: Literal["android", "ios", "other"]
@@ -42,7 +42,7 @@ class PredictionResponse(BaseModel):
     """DTO for prediction response."""
 
     user_id: int
-    item_id: int
+    item_id: Union[str, int]
     score: float
     model_key: ModelsType
 

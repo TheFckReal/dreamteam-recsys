@@ -22,6 +22,8 @@ dependencies = [
     "cachetools>=6.2.4",
     "fastapi[standard]>=0.124.4",
     "huggingface-hub>=1.1.4",
+    "ipykernel>=7.1.0",
+    "jupyter>=1.1.1",
     "loguru",
     "mkdocs",
     "pip",
