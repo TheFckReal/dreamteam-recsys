@@ -5,11 +5,13 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from loguru import logger
 from pydantic import BaseModel
+from datetime import datetime
 
 from src.modeling.models import ModelsType
 from src.modeling.sharing import InferenceData
 import src.service.backend.dependencies as dependencies
-from src.service.backend.service import PredictionService
+from src.service.backend.service import PredictionService, HistoryService
+
 
 # Создаем зависимость для сервиса
 # Это позволяет использовать сервис в разных частях приложения
@@ -19,7 +21,7 @@ from src.service.backend.service import PredictionService
 # PredictionServiceDep - это тип, который используется для обозначения зависимости
 # Annotated - это тип, который используется для обозначения зависимости и позволяет использовать зависимость в качестве параметра функции
 PredictionServiceDep = Annotated[PredictionService, Depends(dependencies.get_prediction_service)]
-
+HistoryServiceDep = Annotated[HistoryService, Depends(dependencies.get_history_service)]
 
 # Создаем Pydantic модель для входных данных
 # Это необходимо для определения DTO (Data Transfer Object) для входных данных
@@ -46,6 +48,18 @@ class PredictionResponse(BaseModel):
     score: float
     model_key: ModelsType
 
+#DTO для истории
+class HistoryItem(BaseModel):
+    id: int
+    user_id: int
+    item_id: Union[str, int]
+    action_type: str
+    subdomain: str
+    os: str
+    model_key: ModelsType
+    status: str          # "ok" / "error"
+    duration_ms: int
+    created_at: datetime
 
 app = FastAPI()
 # Создаем экземпляр FastAPI
@@ -89,4 +103,14 @@ def predict(model_input: ModelInput, prediction_service: PredictionServiceDep):
             status_code=403,
             content={"detail": "модель не смогла обработать данные"},
         )
+    
     return PredictionResponse(**result)
+
+
+@app.get("/history", response_model=list[HistoryItem])
+def get_history(history_service: HistoryServiceDep):
+    """
+    Эндпоинт history для получения всех запросов к /forward.
+    """
+    rows = history_service.get_all()
+    return rows
