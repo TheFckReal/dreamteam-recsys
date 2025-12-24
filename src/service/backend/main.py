@@ -32,7 +32,7 @@ HistoryServiceDep = Annotated[HistoryService, Depends(dependencies.get_history_s
 # и от сервера к клиенту
 # DTO используется для того, чтобы упростить передачу данных и уменьшить количество кода
 class ModelInput(BaseModel):
-    """Data Transfer Object (DTO) for prediction request."""
+    """Data Transfer Object (DTO) for prediction request.""" 
 
     user_id: int
     item_id: Union[str, int]
