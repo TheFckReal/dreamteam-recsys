@@ -24,6 +24,8 @@ def init_db():
             model_key TEXT NOT NULL,
             status TEXT NOT NULL,
             duration_ms INTEGER,
+            request_size INTEGER,
+            token_count INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """
