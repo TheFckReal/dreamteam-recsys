@@ -8,7 +8,7 @@ import polars as pl
 from tqdm import tqdm
 import typer
 
-from src.config import RAW_DATA_DIR
+from src.config import RAW_DATA_DIR, HF_TOKEN
 
 app = typer.Typer()
 
@@ -31,10 +31,6 @@ def download(
 ):
     from huggingface_hub import snapshot_download
 
-    if token is None:
-        token = os.getenv("HF_TOKEN")
-    if token is None:
-        raise ValueError("HF_TOKEN is not set")
     logger.info("Downloading dataset to {output_dir}...", output_dir=output_dir)
 
     snapshot_download(
@@ -42,7 +38,7 @@ def download(
         repo_type="dataset",
         allow_patterns="dataset/small/",
         local_dir=output_dir,
-        token=token,
+        token=HF_TOKEN,
     )
     logger.success("Dataset downloaded.")
 
@@ -113,7 +109,7 @@ def create_target(
         )
     else:
         result_df = _events_df.join(
-            actions_count.with_columns(target=target_process_expr[target_type], on="action_type")
+            actions_count.with_columns(target=target_process_expr[target_type]), on="action_type"
         )
     if isinstance(events_df, pl.LazyFrame):
         return result_df
