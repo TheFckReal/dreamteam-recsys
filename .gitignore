@@ -191,3 +191,6 @@ cython_debug/
 .pypirc
 
 models/svd_artifacts/
+
+# Database files
+.db

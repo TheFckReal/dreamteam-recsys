@@ -1,20 +1,18 @@
 from pathlib import Path
+import pickle
 
 from loguru import logger
-from tqdm import tqdm
-import typer
-
-from src.config import MODELS_DIR, PROCESSED_DATA_DIR, SVD_DIR
-
-import pickle
 import numpy as np
 import polars as pl
 from scipy.sparse import csr_matrix
 from sklearn.decomposition import TruncatedSVD
+import typer
 
+from src.config import SVD_DIR
 from src.dataset import create_target, global_temporal_split
 
 app = typer.Typer()
+
 
 def create_mappings(df: pl.DataFrame):
 
@@ -26,17 +24,12 @@ def create_mappings(df: pl.DataFrame):
 
     return user_to_idx, item_to_idx
 
+
 @app.command()
 def main(
-    events_path: Path = typer.Option(
-        ..., help="Путь к файлу с событиями"
-    ),
-    artifacts_dir: Path = typer.Option(
-        SVD_DIR, help="Папка для сохранения артефактов модели"
-    ),
-    n_components: int = typer.Option(
-        20, help="Количество компонент для SVD"
-    ),
+    events_path: Path = typer.Option(..., help="Путь к файлу с событиями"),
+    artifacts_dir: Path = typer.Option(SVD_DIR, help="Папка для сохранения артефактов модели"),
+    n_components: int = typer.Option(20, help="Количество компонент для SVD"),
 ):
     logger.info(f"Загрузка данных из {events_path}...")
     try:
@@ -46,7 +39,9 @@ def main(
         raise
 
     if "day" not in events.columns:
-        logger.error("В данных нет колонки 'day'. Сначала выполните: python -m src.dataset add-marketplace-dates ...")
+        logger.error(
+            "В данных нет колонки 'day'. Сначала выполните: python -m src.dataset add-marketplace-dates ..."
+        )
         raise ValueError("Missing 'day' column")
 
     train_df, _ = global_temporal_split(events, test_size=1)
@@ -61,8 +56,7 @@ def main(
     values = train_df["target"].to_numpy().astype(np.float32)
 
     R_sparse = csr_matrix(
-        (values, (users_mapped, items_mapped)),
-        shape=(len(user_to_idx), len(item_to_idx))
+        (values, (users_mapped, items_mapped)), shape=(len(user_to_idx), len(item_to_idx))
     )
 
     logger.info(f"Обучение SVD (размерность вектора: {n_components})...")

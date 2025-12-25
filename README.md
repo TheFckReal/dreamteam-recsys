@@ -19,12 +19,87 @@
 
 
 *   **Версия Python:** 3.13.2
-*   **Менеджер пакетов:** [uv](https://docs.astral.sh/uv/). Современный и быстрый инструмент для управления зависимостями проекта.
+*   **Менеджер пакетов:** [uv](https://docs.astral.sh/uv/). Современный и быстрый инструмент для управления зависимостями проекта. Для установки всех нужных зависимостей `uv install`.
 *   **Линтер и форматирование кода:** [Ruff](https://docs.astral.sh/ruff/). Отвечает за проверку стиля кода. Рекомендуется установить [расширение для VSCode](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff).
 *   **Обязательные переменные окружения:**
-*  1. `SECRET_KEY`. Сгенерировать можно с помощью `python -c "import secrets; print(secrets.token_hex(32))"`.
-
+*  1. `SECRET_KEY` - секретный ключ для генерации JWT токенов. Сгенерировать можно с помощью `python -c "import secrets; print(secrets.token_hex(32))"`.
+*  2. `HF_TOKEN` - токен из Hugging Face с правом чтения.
+* **Запуск приложения веб-приложения:**
+* `uvicorn src.service.backend.main:app --reload`
+* **Тестовый пользователь:**
+* Login: `dreamer`
+* Password: `secret`
 ---
+
+## Структура проекта
+
+Проект организован с использованием шаблона `cookiecutter-data-science`.
+
+```
+├── LICENSE            <- Open-source license if one is chosen
+├── Makefile           <- Makefile with convenience commands like `make data` or `make train`
+├── README.md          <- The top-level README for developers using this project.
+├── data
+│   ├── external       <- Data from third party sources.
+│   ├── interim        <- Intermediate data that has been transformed.
+│   ├── processed      <- The final, canonical data sets for modeling.
+│   └── raw            <- The original, immutable data dump.
+│
+├── docs               <- A default mkdocs project; see www.mkdocs.org for details
+│
+├── models             <- Trained and serialized models, model predictions, or model summaries
+│
+├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
+│                         the creator's initials, and a short `-` delimited description, e.g.
+│                         `1.0-jqp-initial-data-exploration`.
+│
+├── pyproject.toml     <- Project configuration file with package metadata for 
+│                         dreamteam_recsys and configuration for tools like black
+│
+├── references         <- Data dictionaries, manuals, and all other explanatory materials.
+│
+├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
+│   └── figures        <- Generated graphics and figures to be used in reporting
+│
+├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
+│                         generated with `pip freeze > requirements.txt`
+│
+├── setup.cfg          <- Configuration file for flake8
+│
+└── src   <- Source code for use in this project.
+    │
+    ├── __init__.py             <- Makes dreamteam_recsys a Python module
+    │
+    ├── config.py               <- Store useful variables and configuration
+    │
+    ├── dataset.py              <- Scripts to download or generate data
+    │
+    ├── features.py             <- Code to create features for modeling
+    │
+    ├── modeling                
+    │   ├── __init__.py 
+    │   ├── predict.py          <- Code to run model inference with trained models          
+    │   └── train.py            <- Code to train models
+    ├── service
+    │   └── backend             <- Code for backend service
+    │       ├── database        <- Database connection and models
+    │       │   ├── database.py
+    │       │   ├── history_repo.py
+    │       │   └── tables.py
+    │       ├── routers         <- API endpoints
+    │       │   └── authorization.py
+    │       ├── dependencies.py <- Dependency injection
+    │       ├── main.py         <- Application entry point
+    │       ├── models.py       <- Pydantic models
+    │       ├── security.py     <- Authentication logic
+    │       ├── service.py      <- Business logic (Prediction & History)
+    │       └── update_db.py    <- Database migration script
+    │
+    │
+    └── plots.py                <- Code to create visualizations
+```
+
+--------
 
 ## План работы
 
@@ -85,59 +160,3 @@
   *   Подготовка финального отчета и презентации для защиты проекта.
 
 ---
-
-## Структура проекта
-
-Проект организован с использованием шаблона `cookiecutter-data-science`.
-
-```
-├── LICENSE            <- Open-source license if one is chosen
-├── Makefile           <- Makefile with convenience commands like `make data` or `make train`
-├── README.md          <- The top-level README for developers using this project.
-├── data
-│   ├── external       <- Data from third party sources.
-│   ├── interim        <- Intermediate data that has been transformed.
-│   ├── processed      <- The final, canonical data sets for modeling.
-│   └── raw            <- The original, immutable data dump.
-│
-├── docs               <- A default mkdocs project; see www.mkdocs.org for details
-│
-├── models             <- Trained and serialized models, model predictions, or model summaries
-│
-├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
-│                         the creator's initials, and a short `-` delimited description, e.g.
-│                         `1.0-jqp-initial-data-exploration`.
-│
-├── pyproject.toml     <- Project configuration file with package metadata for 
-│                         dreamteam_recsys and configuration for tools like black
-│
-├── references         <- Data dictionaries, manuals, and all other explanatory materials.
-│
-├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
-│   └── figures        <- Generated graphics and figures to be used in reporting
-│
-├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
-│                         generated with `pip freeze > requirements.txt`
-│
-├── setup.cfg          <- Configuration file for flake8
-│
-└── src   <- Source code for use in this project.
-    │
-    ├── __init__.py             <- Makes dreamteam_recsys a Python module
-    │
-    ├── config.py               <- Store useful variables and configuration
-    │
-    ├── dataset.py              <- Scripts to download or generate data
-    │
-    ├── features.py             <- Code to create features for modeling
-    │
-    ├── modeling                
-    │   ├── __init__.py 
-    │   ├── predict.py          <- Code to run model inference with trained models          
-    │   └── train.py            <- Code to train models
-    │
-    └── plots.py                <- Code to create visualizations
-```
-
---------
-

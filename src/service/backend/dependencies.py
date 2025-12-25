@@ -4,15 +4,15 @@ from typing import Annotated
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from loguru import logger
 from sqlalchemy.orm import Session
 
 from src.config import ALGORITHM, SECRET_KEY
-from src.service.backend.database import get_db
+from src.service.backend.database.database import get_db
+from src.service.backend.database.tables import User
 from src.service.backend.models import TokenData, UserInDB
 from src.service.backend.security import verify_password
-from src.service.backend.service import PredictionService
-from src.service.backend.service import PredictionService, HistoryServicefrom 
-from src.service.backend.tables import User
+from src.service.backend.service import PredictionService, HistoryService
 
 
 # --- Prediction Service Dependency ---
@@ -38,22 +38,23 @@ def get_user(db: Session, username: str):
     """Retrieves user from database by username."""
     user = db.query(User).filter(User.username == username).first()
     if user:
-        # Map SQLAlchemy model to Pydantic model
         return UserInDB(
-            username=user.username.value,
-            email=user.email.value,
-            full_name=user.full_name.value,
-            disabled=not user.is_active.value,
-            hashed_password=user.hashed_password.value,
-            is_admin=user.is_admin.value
+            username=user.username,
+            email=user.email,
+            full_name=user.full_name,
+            disabled=not user.is_active,
+            hashed_password=user.hashed_password,
+            is_admin=user.is_admin
         )
     return None
 
 def authenticate_user(db: Session, username: str, password: str):
     user = get_user(db, username)
     if not user:
+        logger.warning(f"User {username} not found in database")
         return None
     if not verify_password(password, user.hashed_password):
+        logger.warning(f"Password verification failed for user {username}")
         return None
     return user
 

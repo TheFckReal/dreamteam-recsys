@@ -23,6 +23,13 @@ SVD_DIR = MODELS_DIR / "svd_artifacts"
 REPORTS_DIR = PROJ_ROOT / "reports"
 FIGURES_DIR = REPORTS_DIR / "figures"
 
+# Database
+DATABASE_URL = f"sqlite:///{DATA_DIR / 'interim' / 'app.db'}"
+
+HF_TOKEN = os.getenv("HF_TOKEN")
+if HF_TOKEN is None:
+    raise ValueError("HF_TOKEN must be set in the environment variables.")
+
 SECRET_KEY = os.getenv("SECRET_KEY")
 if SECRET_KEY is None:
     raise ValueError("SECRET_KEY must be set in the environment variables.")

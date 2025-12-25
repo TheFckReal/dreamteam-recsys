@@ -7,7 +7,7 @@ import json
 import src.modeling.models as models
 from src.modeling.sharing import InferenceData
 
-from .history_repo import HistoryRepository
+from src.service.backend.database.history_repo import HistoryRepository
 from typing import List, Dict, Any
 
 
@@ -91,11 +91,11 @@ class PredictionService:
         status = "ok" #фиксируем статус запроса
 
         try:
-           # Основной метод для выполнения предсказания.
-           model = self._get_or_load_model(model_key)
+            # Основной метод для выполнения предсказания.
+            model = self._get_or_load_model(model_key)
 
-           logger.info(f"Using model '{model_key}' for subdomain '{data.subdomain}'")
-           score = model.predict(data)
+            logger.info(f"Using model '{model_key}' for subdomain '{data.subdomain}'")
+            score = model.predict(data)
 
         except Exception as e:
             status = "error" #обрабатываю ошибки выполнения, меняю статус запроса в случае ошибок предсказания

@@ -1,5 +1,4 @@
 from typing import Annotated, Literal, Union
-from typing import List, Dict, Any
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -12,13 +11,13 @@ from datetime import datetime
 from src.modeling.models import ModelsType
 from src.modeling.sharing import InferenceData
 import src.service.backend.dependencies as dependencies
-from src.service.backend.database import engine, get_db, Base
+from src.service.backend.database.database import engine, get_db, Base
 from src.service.backend.models import UserInDB
 from src.service.backend.routers import authorization
 from src.service.backend.security import get_password_hash
 from src.service.backend.service import PredictionService, HistoryService
 
-from src.service.backend.tables import User
+from src.service.backend.database.tables import User
 
 # Создаем таблицы при запуске (для простоты)
 Base.metadata.create_all(bind=engine)
@@ -74,7 +73,6 @@ class StatisticsResponse(BaseModel):
     by_model: list
     by_subdomain: list
     
-    # Разрешаем дополнительные поля и любые типы в dict/list
     model_config = ConfigDict(
         extra='allow',
         protected_namespaces=()
@@ -101,12 +99,13 @@ def init_db():
         db.add(admin)
         db.commit()
     
-    if not db.query(User).filter(User.username == "johndoe").first():
+    # Специальный тестовый пользователь для проверки ассистентам :3
+    if not db.query(User).filter(User.username == "dreamer").first():
         logger.info("Initializing DB with test user...")
         user = User(
-            username="johndoe",
-            email="johndoe@example.com",
-            full_name="John Doe",
+            username="dreamer",
+            email="dreamer@example.com",
+            full_name="Dreamer",
             hashed_password=get_password_hash("secret"),
             is_active=True,
             is_admin=False
@@ -129,16 +128,12 @@ async def validation_exception_handler(_request: Request, exc: RequestValidation
 @app.post("/forward", response_model=PredictionResponse)
 def predict(
     model_input: ModelInput,
-    prediction_service: PredictionServiceDep,
-    current_user: CurrentUser, # Требует авторизации любого пользователя
+    prediction_service: PredictionServiceDep
 ):
     """
-    Main endpoint for retrieving predictions.
-    Delegates logic to PredictionService.
-    Now protected with JWT authentication.
+    Главный эндпоинт для получения предсказаний.
+    
     """
-    # Логируем, кто сделал запрос
-    logger.info(f"User {current_user.username} requested prediction")
 
     data = InferenceData(
         user_id=model_input.user_id,
@@ -176,10 +171,11 @@ def admin_info(
 app.include_router(authorization.router)
 
 @app.get("/history", response_model=list[HistoryItem])
-def get_history(history_service: HistoryServiceDep):
+def get_history(history_service: HistoryServiceDep, current_user: CurrentUser):
     """
     Эндпоинт history для получения всех запросов к /forward.
     """
+    logger.info(f"User {current_user.username} requested history")
     rows = history_service.get_all()
     return rows
 
