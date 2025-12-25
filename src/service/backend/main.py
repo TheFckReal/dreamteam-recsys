@@ -12,25 +12,24 @@ from datetime import datetime
 from src.modeling.models import ModelsType
 from src.modeling.sharing import InferenceData
 import src.service.backend.dependencies as dependencies
+from src.service.backend.database import engine, get_db, Base
+from src.service.backend.models import UserInDB
+from src.service.backend.routers import authorization
+from src.service.backend.security import get_password_hash
 from src.service.backend.service import PredictionService, HistoryService
 
+from src.service.backend.tables import User
+
+# Создаем таблицы при запуске (для простоты)
+Base.metadata.create_all(bind=engine)
 
 # Создаем зависимость для сервиса
-# Это позволяет использовать сервис в разных частях приложения
-# и избежать создания новых экземпляров сервиса для каждого запроса
-# Depends - это декоратор, который позволяет использовать зависимость в качестве параметра функции
-# get_prediction_service - это функция, которая возвращает экземпляр сервиса
-# PredictionServiceDep - это тип, который используется для обозначения зависимости
-# Annotated - это тип, который используется для обозначения зависимости и позволяет использовать зависимость в качестве параметра функции
 PredictionServiceDep = Annotated[PredictionService, Depends(dependencies.get_prediction_service)]
 HistoryServiceDep = Annotated[HistoryService, Depends(dependencies.get_history_service)]
+# Создаем зависимости для пользователей
+CurrentUser = Annotated[UserInDB, Depends(dependencies.get_current_active_user)]
+AdminUser = Annotated[UserInDB, Depends(dependencies.get_current_admin_user)]
 
-# Создаем Pydantic модель для входных данных
-# Это необходимо для определения DTO (Data Transfer Object) для входных данных
-# DTO - это объект, который используется для передачи данных между слоями приложения
-# В данном случае, мы используем DTO для передачи данных от клиента к серверу
-# и от сервера к клиенту
-# DTO используется для того, чтобы упростить передачу данных и уменьшить количество кода
 class ModelInput(BaseModel):
     """Data Transfer Object (DTO) for prediction request.""" 
 
@@ -82,11 +81,41 @@ class StatisticsResponse(BaseModel):
     )
 
 app = FastAPI()
-# Создаем экземпляр FastAPI
-# FastAPI - это фреймворк для создания API серверов на Python
-# Он позволяет создавать API сервера с помощью декораторов
-# и автоматически генерировать OpenAPI спецификацию
 
+# Подключаем роутер авторизации
+app.include_router(authorization.router)
+
+# Функция для инициализации начальных данных
+def init_db():
+    db = next(get_db())
+    if not db.query(User).filter(User.username == "admin").first():
+        logger.info("Initializing DB with admin user...")
+        admin = User(
+            username="admin",
+            email="admin@example.com",
+            full_name="Admin User",
+            hashed_password=get_password_hash("admin"),
+            is_active=True,
+            is_admin=True
+        )
+        db.add(admin)
+        db.commit()
+    
+    if not db.query(User).filter(User.username == "johndoe").first():
+        logger.info("Initializing DB with test user...")
+        user = User(
+            username="johndoe",
+            email="johndoe@example.com",
+            full_name="John Doe",
+            hashed_password=get_password_hash("secret"),
+            is_active=True,
+            is_admin=False
+        )
+        db.add(user)
+        db.commit()
+
+# Запускаем инициализацию при старте
+init_db()
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(_request: Request, exc: RequestValidationError):
@@ -98,15 +127,19 @@ async def validation_exception_handler(_request: Request, exc: RequestValidation
 
 
 @app.post("/forward", response_model=PredictionResponse)
-def predict(model_input: ModelInput, prediction_service: PredictionServiceDep):
+def predict(
+    model_input: ModelInput,
+    prediction_service: PredictionServiceDep,
+    current_user: CurrentUser, # Требует авторизации любого пользователя
+):
     """
     Main endpoint for retrieving predictions.
     Delegates logic to PredictionService.
+    Now protected with JWT authentication.
     """
-    # Основной эндпоинт для получения предсказаний.
-    # Делегирует логику сервису PredictionService.
+    # Логируем, кто сделал запрос
+    logger.info(f"User {current_user.username} requested prediction")
 
-    # Преобразование внешнего DTO во внутреннюю структуру данных (InferenceData)
     data = InferenceData(
         user_id=model_input.user_id,
         item_id=model_input.item_id,
@@ -126,6 +159,21 @@ def predict(model_input: ModelInput, prediction_service: PredictionServiceDep):
     
     return PredictionResponse(**result)
 
+
+@app.get("/admin/info")
+def admin_info(
+    current_user: AdminUser
+):
+    """
+    Example of an admin-only endpoint.
+    Only accessible if is_admin=True in user DB.
+    """
+    return {
+        "status": "admin_access_granted",
+        "user": current_user.username
+    }
+
+app.include_router(authorization.router)
 
 @app.get("/history", response_model=list[HistoryItem])
 def get_history(history_service: HistoryServiceDep):

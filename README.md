@@ -21,6 +21,8 @@
 *   **Версия Python:** 3.13.2
 *   **Менеджер пакетов:** [uv](https://docs.astral.sh/uv/). Современный и быстрый инструмент для управления зависимостями проекта.
 *   **Линтер и форматирование кода:** [Ruff](https://docs.astral.sh/ruff/). Отвечает за проверку стиля кода. Рекомендуется установить [расширение для VSCode](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff).
+*   **Обязательные переменные окружения:**
+*  1. `SECRET_KEY`. Сгенерировать можно с помощью `python -c "import secrets; print(secrets.token_hex(32))"`.
 
 ---
 

@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -21,6 +22,12 @@ SVD_DIR = MODELS_DIR / "svd_artifacts"
 
 REPORTS_DIR = PROJ_ROOT / "reports"
 FIGURES_DIR = REPORTS_DIR / "figures"
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+if SECRET_KEY is None:
+    raise ValueError("SECRET_KEY must be set in the environment variables.")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 # If tqdm is installed, configure loguru with tqdm.write
 # https://github.com/Delgan/loguru/issues/135
