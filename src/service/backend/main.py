@@ -1,11 +1,13 @@
 from typing import Annotated, Literal, Union
+from typing import List, Dict, Any
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
+
 
 from src.modeling.models import ModelsType
 from src.modeling.sharing import InferenceData
@@ -30,7 +32,7 @@ HistoryServiceDep = Annotated[HistoryService, Depends(dependencies.get_history_s
 # и от сервера к клиенту
 # DTO используется для того, чтобы упростить передачу данных и уменьшить количество кода
 class ModelInput(BaseModel):
-    """Data Transfer Object (DTO) for prediction request."""
+    """Data Transfer Object (DTO) for prediction request.""" 
 
     user_id: int
     item_id: Union[str, int]
@@ -60,6 +62,24 @@ class HistoryItem(BaseModel):
     status: str          # "ok" / "error"
     duration_ms: int
     created_at: datetime
+
+
+class StatisticsResponse(BaseModel):
+    total_requests: int
+    avg_duration_ms: float
+    min_duration_ms: int
+    max_duration_ms: int
+    success_rate: float
+    duration_quantiles: dict
+    request_characteristics: dict
+    by_model: list
+    by_subdomain: list
+    
+    # Разрешаем дополнительные поля и любые типы в dict/list
+    model_config = ConfigDict(
+        extra='allow',
+        protected_namespaces=()
+    )
 
 app = FastAPI()
 # Создаем экземпляр FastAPI
@@ -114,3 +134,28 @@ def get_history(history_service: HistoryServiceDep):
     """
     rows = history_service.get_all()
     return rows
+
+
+@app.get("/stats", response_model=StatisticsResponse)
+def get_statistics(history_service: HistoryServiceDep):
+    stats = history_service.get_statistics()
+    
+    total = stats.get("total_requests", 0)
+    success_count = stats.get("success_count", 0)
+    
+    return StatisticsResponse(
+        total_requests=total,
+        avg_duration_ms=float(stats.get("avg_duration", 0)),
+        min_duration_ms=int(stats.get("min_duration", 0)),
+        max_duration_ms=int(stats.get("max_duration", 0)),
+        success_rate=success_count / total if total > 0 else 0,
+        duration_quantiles=stats.get("duration_quantiles", {}),
+        request_characteristics={
+            "avg_request_size_bytes": float(stats.get("avg_request_size", 0)),
+            "avg_token_count": float(stats.get("avg_token_count", 0)),
+            "distinct_models": len([m for m in stats.get("by_model", []) if m]),
+            "distinct_subdomains": len([s for s in stats.get("by_subdomain", []) if s])
+        },
+        by_model=stats.get("by_model", []),
+        by_subdomain=stats.get("by_subdomain", [])
+    )

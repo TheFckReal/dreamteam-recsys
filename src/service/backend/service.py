@@ -1,24 +1,69 @@
 from cachetools import LRUCache
 from loguru import logger
 import time
+import json
+
 
 import src.modeling.models as models
 from src.modeling.sharing import InferenceData
 
 from .history_repo import HistoryRepository
-from typing import List
+from typing import List, Dict, Any
 
 
-#Сервис истории
+# Расчет метрик
+def calculate_request_size(data: Dict[str, Any]) -> int:
+    """Вычислить размер запроса в байтах"""
+    try:
+        # Считаем кол-во байтов json
+        json_str = json.dumps(data)
+        return len(json_str.encode('utf-8'))
+    except:
+        return 0
+    
+def estimate_token_count(data: Dict[str, Any]) -> int:
+    """Оценить количество токенов (упрощенная версия)"""
+    total_tokens = 0
+    
+    if isinstance(data.get('item_id'), str):
+        words = len(data['item_id'].split())
+        total_tokens += int(words * 0.75)
+    
+    for key, value in data.items():
+        if isinstance(value, str):
+            words = len(value.split())
+            total_tokens += int(words * 0.25) 
+    
+    return total_tokens
+
 class HistoryService:
     def __init__(self, repo: HistoryRepository | None = None):
         self._repo = repo or HistoryRepository()
 
     def log_request(self, record: dict) -> None:
+        # Добавляем расчет метрик перед сохранением
+        record["request_size"] = calculate_request_size({
+            "user_id": record.get("user_id"),
+            "item_id": record.get("item_id"),
+            "action_type": record.get("action_type"),
+            "subdomain": record.get("subdomain"),
+            "os": record.get("os"),
+            "model_key": record.get("model_key")
+        })
+        record["token_count"] = estimate_token_count({
+            "item_id": record.get("item_id"),
+            "action_type": record.get("action_type"),
+            "subdomain": record.get("subdomain")
+        })
+        
         self._repo.add_record(record)
 
     def get_all(self) -> List[dict]:
         return self._repo.list_all()
+    
+    def get_statistics(self) -> Dict[str, Any]:
+        """Получить статистику запросов"""
+        return self._repo.get_statistics()
 
 
 class PredictionService:
