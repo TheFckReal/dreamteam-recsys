@@ -1,69 +1,24 @@
 from cachetools import LRUCache
 from loguru import logger
 import time
-import json
-
 
 import src.modeling.models as models
-from src.modeling.sharing import InferenceData, TopNRequestData
+from src.modeling.sharing import InferenceData
 
 from .history_repo import HistoryRepository
-from typing import List, Dict, Any
+from typing import List
 
 
-# Расчет метрик
-def calculate_request_size(data: Dict[str, Any]) -> int:
-    """Вычислить размер запроса в байтах"""
-    try:
-        # Считаем кол-во байтов json
-        json_str = json.dumps(data)
-        return len(json_str.encode('utf-8'))
-    except:
-        return 0
-    
-def estimate_token_count(data: Dict[str, Any]) -> int:
-    """Оценить количество токенов (упрощенная версия)"""
-    total_tokens = 0
-    
-    if isinstance(data.get('item_id'), str):
-        words = len(data['item_id'].split())
-        total_tokens += int(words * 0.75)
-    
-    for key, value in data.items():
-        if isinstance(value, str):
-            words = len(value.split())
-            total_tokens += int(words * 0.25) 
-    
-    return total_tokens
-
+#Сервис истории
 class HistoryService:
     def __init__(self, repo: HistoryRepository | None = None):
         self._repo = repo or HistoryRepository()
 
     def log_request(self, record: dict) -> None:
-        # Добавляем расчет метрик перед сохранением
-        record["request_size"] = calculate_request_size({
-            "user_id": record.get("user_id"),
-            "item_id": record.get("item_id"),
-            "action_type": record.get("action_type"),
-            "subdomain": record.get("subdomain"),
-            "os": record.get("os"),
-            "model_key": record.get("model_key")
-        })
-        record["token_count"] = estimate_token_count({
-            "item_id": record.get("item_id"),
-            "action_type": record.get("action_type"),
-            "subdomain": record.get("subdomain")
-        })
-        
         self._repo.add_record(record)
 
     def get_all(self) -> List[dict]:
         return self._repo.list_all()
-    
-    def get_statistics(self) -> Dict[str, Any]:
-        """Получить статистику запросов"""
-        return self._repo.get_statistics()
 
 
 class PredictionService:
@@ -145,51 +100,6 @@ class PredictionService:
         self._models_cache[model_key] = model_instance
 
         return model_instance
-    
-    def get_top_n(self, data: TopNRequestData, model_key: models.ModelsType) -> dict:
-        """
-        Получить top-N рекомендация для пользователя
-        """
-        start = time.monotonic()
-        status = "ok"
-
-        try:
-            # Загружаем модель
-            model = self._get_or_load_model(model_key)
-            logger.info(f"Getting top-{data.n} recommendations for user {data.user_id} using model '{model_key}'")
-            
-            # Получаем рекомендации
-            recommendations = model.get_top_n(data)
-            logger.debug(f"Got {len(recommendations)} recommendations")
-
-        except Exception as e:
-            status = "error"
-            logger.exception("Top-N recommendations failed")
-            raise
-        finally:
-            duration_ms = int((time.monotonic() - start) * 1000)
-
-            # Логируем запрос
-            record = {
-                "user_id": data.user_id,
-                "item_id": f"top_{data.n}",  # специальный идентификатор
-                "action_type": data.action_type,
-                "subdomain": data.subdomain,
-                "os": data.os,
-                "model_key": model_key,
-                "status": status,
-                "duration_ms": duration_ms,
-                "request_size": len(str(data).encode('utf-8')),
-                "token_count": 0
-            }
-            self._history_service.log_request(record)
-
-        return {
-            "user_id": data.user_id,
-            "recommendations": recommendations,
-            "model_key": model_key,
-            "count": len(recommendations)
-        }
     
 
 
