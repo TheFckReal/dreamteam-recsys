@@ -1,14 +1,13 @@
+import json
+import time
+from typing import Any, Dict, List
+
 from cachetools import LRUCache
 from loguru import logger
-import time
-import json
-
 
 import src.modeling.models as models
 from src.modeling.sharing import InferenceData
-
 from src.service.backend.database.history_repo import HistoryRepository
-from typing import List, Dict, Any
 
 
 # Расчет метрик
@@ -17,24 +16,26 @@ def calculate_request_size(data: Dict[str, Any]) -> int:
     try:
         # Считаем кол-во байтов json
         json_str = json.dumps(data)
-        return len(json_str.encode('utf-8'))
-    except:
+        return len(json_str.encode("utf-8"))
+    except Exception:
         return 0
-    
+
+
 def estimate_token_count(data: Dict[str, Any]) -> int:
     """Оценить количество токенов (упрощенная версия)"""
     total_tokens = 0
-    
-    if isinstance(data.get('item_id'), str):
-        words = len(data['item_id'].split())
+
+    if isinstance(data.get("item_id"), str):
+        words = len(data["item_id"].split())
         total_tokens += int(words * 0.75)
-    
+
     for key, value in data.items():
         if isinstance(value, str):
             words = len(value.split())
-            total_tokens += int(words * 0.25) 
-    
+            total_tokens += int(words * 0.25)
+
     return total_tokens
+
 
 class HistoryService:
     def __init__(self, repo: HistoryRepository | None = None):
@@ -42,25 +43,23 @@ class HistoryService:
 
     def log_request(self, record: dict) -> None:
         # Добавляем расчет метрик перед сохранением
-        record["request_size"] = calculate_request_size({
-            "user_id": record.get("user_id"),
-            "item_id": record.get("item_id"),
-            "action_type": record.get("action_type"),
-            "subdomain": record.get("subdomain"),
-            "os": record.get("os"),
-            "model_key": record.get("model_key")
-        })
-        record["token_count"] = estimate_token_count({
-            "item_id": record.get("item_id"),
-            "action_type": record.get("action_type"),
-            "subdomain": record.get("subdomain")
-        })
-        
+        record["request_size"] = calculate_request_size(
+            {
+                "user_id": record.get("user_id"),
+                "item_id": record.get("item_id"),
+                "model_params": record.get("model_params"),
+                "model_key": record.get("model_key"),
+            }
+        )
+        record["token_count"] = estimate_token_count(
+            {"item_id": record.get("item_id"), "model_params": record.get("model_params")}
+        )
+
         self._repo.add_record(record)
 
     def get_all(self) -> List[dict]:
         return self._repo.list_all()
-    
+
     def get_statistics(self) -> Dict[str, Any]:
         """Получить статистику запросов"""
         return self._repo.get_statistics()
@@ -87,31 +86,31 @@ class PredictionService:
         """
         Main entry point for making a prediction.
         """
-        start = time.monotonic() #замеряем время обработки запроса, чтоб после записать значение в БД для анализа статистики
-        status = "ok" #фиксируем статус запроса
+        start = time.monotonic()  # замеряем время обработки запроса, чтоб после записать значение в БД для анализа статистики
+        status = "ok"  # фиксируем статус запроса
 
         try:
             # Основной метод для выполнения предсказания.
             model = self._get_or_load_model(model_key)
 
-            logger.info(f"Using model '{model_key}' for subdomain '{data.subdomain}'")
+            logger.info(f"Using model '{model_key}'")
             score = model.predict(data)
 
-        except Exception as e:
-            status = "error" #обрабатываю ошибки выполнения, меняю статус запроса в случае ошибок предсказания
+        except Exception:
+            status = "error"  # обрабатываю ошибки выполнения, меняю статус запроса в случае ошибок предсказания
             logger.exception("Prediction failed")
             raise
         finally:
-            duration_ms = int((time.monotonic() - start) * 1000) #вычисляю время обработки запроса
+            duration_ms = int(
+                (time.monotonic() - start) * 1000
+            )  # вычисляю время обработки запроса
 
             record = {
                 "user_id": data.user_id,
                 "item_id": data.item_id,
-                "action_type": data.action_type,   
-                "subdomain": data.subdomain,
-                "os": data.os,                     
+                "model_params": data.model_params,
                 "model_key": model_key,
-                "status": status,                  #ok или error
+                "status": status,  # ok или error
                 "duration_ms": duration_ms,
             }
             self._history_service.log_request(record)
@@ -145,6 +144,3 @@ class PredictionService:
         self._models_cache[model_key] = model_instance
 
         return model_instance
-    
-
-

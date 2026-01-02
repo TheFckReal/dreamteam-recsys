@@ -13,9 +13,10 @@ class InferenceData:
     # Используется для стандартизации входов всех моделей.
     user_id: int
     item_id: Union[str, int]
-    action_type: Literal["view", "click", "clickout", "like"]
-    subdomain: Literal["u2i", "i2i", "catalog", "search", "other"]
-    os: Literal["android", "ios", "other"]
+    model_params: dict | None = None
+    # action_type: Literal["view", "click", "clickout", "like"]
+    # subdomain: Literal["u2i", "i2i", "catalog", "search", "other"]
+    # os: Literal["android", "ios", "other"]
 
 
 @dataclass

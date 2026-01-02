@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import func
+from sqlalchemy import JSON, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.service.backend.database.database import Base
@@ -25,13 +25,10 @@ class History(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     user_id: Mapped[int]
     item_id: Mapped[str]
-    action_type: Mapped[str]
-    subdomain: Mapped[str]
-    os: Mapped[str]
     model_key: Mapped[str]
+    model_params: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     status: Mapped[str]
     duration_ms: Mapped[Optional[int]] = mapped_column(nullable=True)
     request_size: Mapped[int] = mapped_column(default=0)
     token_count: Mapped[int] = mapped_column(default=0)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-

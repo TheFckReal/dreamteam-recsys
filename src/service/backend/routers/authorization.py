@@ -13,10 +13,11 @@ from src.service.backend.security import create_access_token
 
 router = APIRouter()
 
+
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
 ):
     """
     Получение токена для авторизации.
