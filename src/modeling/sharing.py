@@ -27,3 +27,11 @@ class PredictionResult:
     # Структура данных для результата предсказания.
     prediction: float
     metadata: Optional[dict] = None
+
+@dataclass
+class TopNRequestData:
+    user_id: int
+    n: int = 10  
+    action_type: str = "view"
+    subdomain: str = "u2i"
+    os: str = "android"

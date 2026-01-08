@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
-from typing import Any, List, Union, cast, overload
+from typing import Any, List, Union, cast, overload, Dict
 
 import polars as pl
 
-from src.modeling.sharing import InferenceData
+from src.modeling.sharing import InferenceData, TopNRequestData
 
 PredictionInput = Union[InferenceData, pl.DataFrame, Iterable[InferenceData]]
 PredictionOutput = Union[float, List[float], pl.Series]
@@ -89,3 +89,7 @@ class InferenceModel(ABC):
         # Метод для загрузки "тяжелых" ресурсов (весов модели, соединений с БД).
         # Должен вызываться явно перед использованием модели.
         pass
+
+    def get_top_n(self, data: TopNRequestData) -> List[Dict[str, Any]]:
+        """Get top-N recommendations for a user"""
+        raise NotImplementedError("Top-N recommendations not implemented for this model")

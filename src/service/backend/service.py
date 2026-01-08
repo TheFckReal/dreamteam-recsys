@@ -5,7 +5,7 @@ import json
 
 
 import src.modeling.models as models
-from src.modeling.sharing import InferenceData
+from src.modeling.sharing import InferenceData, TopNRequestData
 
 from .history_repo import HistoryRepository
 from typing import List, Dict, Any
@@ -145,6 +145,51 @@ class PredictionService:
         self._models_cache[model_key] = model_instance
 
         return model_instance
+    
+    def get_top_n(self, data: TopNRequestData, model_key: models.ModelsType) -> dict:
+        """
+        Получить top-N рекомендация для пользователя
+        """
+        start = time.monotonic()
+        status = "ok"
+
+        try:
+            # Загружаем модель
+            model = self._get_or_load_model(model_key)
+            logger.info(f"Getting top-{data.n} recommendations for user {data.user_id} using model '{model_key}'")
+            
+            # Получаем рекомендации
+            recommendations = model.get_top_n(data)
+            logger.debug(f"Got {len(recommendations)} recommendations")
+
+        except Exception as e:
+            status = "error"
+            logger.exception("Top-N recommendations failed")
+            raise
+        finally:
+            duration_ms = int((time.monotonic() - start) * 1000)
+
+            # Логируем запрос
+            record = {
+                "user_id": data.user_id,
+                "item_id": f"top_{data.n}",  # специальный идентификатор
+                "action_type": data.action_type,
+                "subdomain": data.subdomain,
+                "os": data.os,
+                "model_key": model_key,
+                "status": status,
+                "duration_ms": duration_ms,
+                "request_size": len(str(data).encode('utf-8')),
+                "token_count": 0
+            }
+            self._history_service.log_request(record)
+
+        return {
+            "user_id": data.user_id,
+            "recommendations": recommendations,
+            "model_key": model_key,
+            "count": len(recommendations)
+        }
     
 
 

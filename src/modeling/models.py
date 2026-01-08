@@ -1,14 +1,15 @@
 import random
 from time import sleep
-from typing import Callable, Dict, Literal
+from typing import Callable, Dict, Literal, List, Tuple, Optional, Any
 
 from loguru import logger
 import polars as pl
 
 from src.modeling.interface import InferenceModel
-from src.modeling.sharing import InferenceData
+from src.modeling.sharing import InferenceData, TopNRequestData
 from src.config import SVD_DIR
 
+import random
 import pickle
 import numpy as np
 from pathlib import Path
@@ -85,6 +86,31 @@ class DummyModel(InferenceModel):
             return
         sleep(self.load_time)
         self._is_loaded = True
+    
+    def get_top_n(self, data: TopNRequestData) -> List[Dict[str, Any]]:
+        """
+        Get top-N recommendations for Dummy model
+        """
+        if not self._is_loaded:
+            raise RuntimeError("Model is not loaded")
+
+        recommendations = []
+        
+        for i in range(data.n):
+            item_id = f"item_{random.randint(1000, 9999)}"
+            score = random.random()
+            
+            recommendations.append({
+                "item_id": item_id,
+                "score": score,
+                "rank": i + 1
+            })
+        
+        recommendations.sort(key=lambda x: x["score"], reverse=True)
+        for i, rec in enumerate(recommendations):
+            rec["rank"] = i + 1
+        
+        return recommendations
 
 
 # --- Factory Implementations ---
@@ -107,6 +133,8 @@ class SVDModel(InferenceModel):
         self.item_features = None
         self.user_to_idx = None
         self.item_to_idx = None
+        self.idx_to_item = None
+        self.item_indices = None
         self._is_loaded = False
         self.artifacts_path = Path(SVD_DIR)
 
@@ -129,8 +157,12 @@ class SVDModel(InferenceModel):
             with open(self.artifacts_path / "item_to_idx.pkl", "rb") as f:
                 self.item_to_idx = pickle.load(f)
 
+            self.idx_to_item = {idx: item_id for item_id, idx in self.item_to_idx.items()}
+            self.item_indices = np.arange(len(self.item_features))
+
             self._is_loaded = True
             logger.info("SVD модель успешно загружена!")
+
         except Exception as e:
             logger.error(f"Ошибка загрузки SVD: {e}")
             raise e
@@ -156,6 +188,45 @@ class SVDModel(InferenceModel):
     def _predict_dataframe(self, data: pl.DataFrame) -> pl.Series:
 
         raise NotImplementedError("Batch prediction is not implemented for SVDModel")
+    
+    def get_top_n(self, data: TopNRequestData) -> List[Dict[str, Any]]:
+        """
+        Получить top-N рекомендаций для пользователя
+        """
+        if not self._is_loaded:
+            raise RuntimeError("SVD Model is not loaded")
+        
+        # Проверяем что пользователь есть в модели
+        u_idx = self.user_to_idx.get(data.user_id)
+        if u_idx is None:
+            logger.warning(f"User {data.user_id} not found in model")
+            return []
+        
+        user_vector = self.user_features[u_idx]
+        scores = np.dot(self.item_features, user_vector)
+        
+        n = min(data.n, len(scores))
+        if n == 0:
+            return []
+        
+        # Находим топ-N позиций
+        top_positions = np.argpartition(scores, -n)[-n:]
+        top_positions = top_positions[np.argsort(scores[top_positions])[::-1]]
+        
+        # Формируем результат
+        recommendations = []
+        for rank, pos in enumerate(top_positions, 1):
+            score = float(scores[pos])
+            original_idx = self.item_indices[pos]
+            item_id = self.idx_to_item[original_idx]
+            
+            recommendations.append({
+                "item_id": item_id,
+                "score": score,
+                "rank": rank
+            })
+
+        return recommendations
 
 @register_model("svd_v1")
 def _create_svd_model() -> InferenceModel:

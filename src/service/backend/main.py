@@ -5,12 +5,11 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from loguru import logger
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 
-
 from src.modeling.models import ModelsType
-from src.modeling.sharing import InferenceData
+from src.modeling.sharing import InferenceData, TopNRequestData
 import src.service.backend.dependencies as dependencies
 from src.service.backend.service import PredictionService, HistoryService
 
@@ -41,7 +40,6 @@ class ModelInput(BaseModel):
     os: Literal["android", "ios", "other"]
     model_key: ModelsType
 
-
 class PredictionResponse(BaseModel):
     """DTO for prediction response."""
 
@@ -49,6 +47,37 @@ class PredictionResponse(BaseModel):
     item_id: Union[str, int]
     score: float
     model_key: ModelsType
+
+
+class TopNRequest(BaseModel):
+    """Входные параметры DTO для предсказания top-N товаров"""
+    user_id: int
+    n: int = Field(default=10, ge=1, le=100, description="Number of recommendations")
+    action_type: Literal["view", "click", "clickout", "like"] = Field(default="view")
+    subdomain: Literal["u2i", "i2i", "catalog", "search", "other"] = Field(default="u2i")
+    os: Literal["android", "ios", "other"] = Field(default="android")
+    model_key: ModelsType
+    
+    model_config = ConfigDict(protected_namespaces=())
+
+
+class TopNResponse(BaseModel):
+    """Выходные параметры DTO для предсказания top-N товаров"""
+    user_id: int
+    recommendations: List[Dict[str, Any]] 
+    model_key: ModelsType
+    count: int 
+    
+    model_config = ConfigDict(protected_namespaces=())
+
+class RecommendationItem(BaseModel):
+    """ Запись рекомендации """
+    item_id: Union[str, int]
+    score: float
+    rank: int 
+    
+    model_config = ConfigDict(protected_namespaces=())
+
 
 #DTO для истории
 class HistoryItem(BaseModel):
@@ -158,4 +187,42 @@ def get_statistics(history_service: HistoryServiceDep):
         },
         by_model=stats.get("by_model", []),
         by_subdomain=stats.get("by_subdomain", [])
+    )
+
+@app.post("/forward/top", response_model=TopNResponse)
+def get_top_recommendations(request: TopNRequest, prediction_service: PredictionServiceDep):
+    """
+    Get top-N recommendations for a user.
+    """
+    data = TopNRequestData(
+        user_id=request.user_id,
+        n=request.n,
+        action_type=request.action_type,
+        subdomain=request.subdomain,
+        os=request.os
+    )
+    
+    try:
+        result = prediction_service.get_top_n(data, request.model_key)
+    except Exception as e:
+        logger.error(f"Failed to get top-N recommendations: {e}")
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "модель не смогла обработать запрос"},
+        )
+    
+    recommendations = [
+        RecommendationItem(
+            item_id=rec["item_id"],
+            score=rec["score"],
+            rank=rec["rank"]
+        ).model_dump()  
+        for rec in result["recommendations"]
+    ]
+    
+    return TopNResponse(
+        user_id=result["user_id"],
+        recommendations=recommendations,  
+        model_key=result["model_key"],
+        count=result["count"]
     )
