@@ -44,6 +44,26 @@ def global_temporal_split(
     return train_df, test_df
 
 
+def get_last_k_user_interactions(
+    events_df: pl.LazyFrame,
+    last_k: int | None = 30,
+    date_column: str = "day",
+    timestamp_column: str = "timestamp",
+    user_column: str = "user_id",
+    acceptable_action: list[str] | None = None,
+):
+    if acceptable_action is None:
+        acceptable_action = ["view", "clickout", "like", "click"]
+    return (
+        events_df.filter(pl.col("action_type").is_in(set(acceptable_action)))
+        .group_by(user_column)
+        .agg(
+            pl.all().sort_by(date_column, timestamp_column).tail(last_k)
+            if last_k is not None
+            else pl.all().sort_by(date_column, timestamp_column)
+        )
+    )
+
 
 def split_cold_start(train_df: pl.LazyFrame, test_df: pl.LazyFrame, user_col: str = "user_id"):
     """
