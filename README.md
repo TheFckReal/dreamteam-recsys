@@ -64,8 +64,6 @@
 ├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
 │                         generated with `pip freeze > requirements.txt`
 │
-├── setup.cfg          <- Configuration file for flake8
-│
 └── src   <- Source code for use in this project.
     │
     ├── __init__.py             <- Makes dreamteam_recsys a Python module

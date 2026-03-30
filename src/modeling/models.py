@@ -5,9 +5,10 @@ from typing import Callable, Dict, Literal
 from loguru import logger
 import polars as pl
 
+from src.modeling.ials import IALSRecommender
 from src.modeling.interface import InferenceModel
 from src.modeling.sharing import InferenceData
-from src.config import SVD_DIR
+from src.config import SVD_DIR, IALS_DIR
 
 import pickle
 import numpy as np
@@ -47,7 +48,7 @@ def create_model(model_key: str) -> InferenceModel:
     return factory()
 
 
-ModelsType = Literal["dummy", "svd_v1"]
+ModelsType = Literal["dummy", "svd_v1", "ials_v1"]
 
 
 # --- Model Implementations ---
@@ -157,8 +158,78 @@ class SVDModel(InferenceModel):
 
         raise NotImplementedError("Batch prediction is not implemented for SVDModel")
 
+class IALSModel(InferenceModel):
+    def __init__(self):
+        super().__init__()
+        self.recommender: IALSRecommender | None = None
+        self._is_loaded = False
+        self.artifacts_path = Path(IALS_DIR)
+
+    def loads(self) -> None:
+        """Загрузка весов."""
+        if self._is_loaded:
+            return
+
+        logger.info("Загрузка IALS модели...")
+        try:
+            with open(self.artifacts_path / "model.pkl", "rb") as f:
+                self.recommender = pickle.load(f)
+
+            self._is_loaded = True
+            logger.info("IALS модель успешно загружена!")
+        except Exception as e:
+            logger.error(f"Ошибка загрузки IALS: {e}")
+            raise e
+
+    def _ensure_ready(self) -> IALSRecommender:
+        if not self._is_loaded or self.recommender is None or self.recommender.model is None:
+            raise RuntimeError("IALS Model is not loaded")
+        return self.recommender
+
+    def _predict_single(self, data: InferenceData) -> float:
+        rec = self._ensure_ready()
+        assert rec.model is not None
+
+        u_idx = rec.user_to_idx.get(data.user_id)
+        i_idx = rec.item_to_idx.get(data.item_id)
+
+        if u_idx is None or i_idx is None:
+            return 0.0
+
+        score = np.dot(rec.model.user_factors[u_idx], rec.model.item_factors[i_idx])
+        return float(score)
+
+    def _predict_dataframe(self, data: pl.DataFrame) -> pl.Series:
+        rec = self._ensure_ready()
+        assert rec.model is not None
+
+        user_ids = data["user_id"].to_list()
+        item_ids = data["item_id"].to_list()
+
+        user_factors = rec.model.user_factors
+        item_factors = rec.model.item_factors
+
+        u_idxs = [rec.user_to_idx.get(uid) for uid in user_ids]
+        i_idxs = [rec.item_to_idx.get(iid) for iid in item_ids]
+
+        scores = np.zeros(len(user_ids), dtype=np.float32)
+        valid = np.array(
+            [(u is not None and i is not None) for u, i in zip(u_idxs, i_idxs)]
+        )
+        if valid.any():
+            valid_u = np.array([u for u, v in zip(u_idxs, valid) if v])
+            valid_i = np.array([i for i, v in zip(i_idxs, valid) if v])
+            scores[valid] = np.sum(
+                user_factors[valid_u] * item_factors[valid_i], axis=1
+            )
+
+        return pl.Series("score", scores)
+
 @register_model("svd_v1")
 def _create_svd_model() -> InferenceModel:
-
     return SVDModel()
 
+
+@register_model("ials_v1")
+def _create_ials_model() -> InferenceModel:
+    return IALSModel()

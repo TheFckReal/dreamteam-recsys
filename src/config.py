@@ -19,6 +19,7 @@ EXTERNAL_DATA_DIR = DATA_DIR / "external"
 
 MODELS_DIR = PROJ_ROOT / "models"
 SVD_DIR = MODELS_DIR / "svd_artifacts"
+IALS_DIR = MODELS_DIR / "ials_artifacts"
 
 REPORTS_DIR = PROJ_ROOT / "reports"
 FIGURES_DIR = REPORTS_DIR / "figures"
