@@ -1,29 +1,48 @@
-from pathlib import Path
+from typing import Literal, cast
 
 from loguru import logger
-from tqdm import tqdm
 import typer
 
-from src.config import MODELS_DIR, PROCESSED_DATA_DIR
+from src.modeling.models import ModelsType, create_model
+from src.modeling.sharing import InferenceData
 
 app = typer.Typer()
 
 
 @app.command()
 def main(
-    # ---- REPLACE DEFAULT PATHS AS APPROPRIATE ----
-    features_path: Path = PROCESSED_DATA_DIR / "test_features.csv",
-    model_path: Path = MODELS_DIR / "model.pkl",
-    predictions_path: Path = PROCESSED_DATA_DIR / "test_predictions.csv",
-    # -----------------------------------------
+    user_id: int,
+    item_id: int,
+    model_params: dict | None = None,
+    model_key: ModelsType = typer.Option(..., help="Key of the model to use (e.g. 'dummy')"),
 ):
-    # ---- REPLACE THIS WITH YOUR OWN CODE ----
-    logger.info("Performing inference for model...")
-    for i in tqdm(range(10), total=10):
-        if i == 5:
-            logger.info("Something happened for iteration 5.")
-    logger.success("Inference complete.")
-    # -----------------------------------------
+    """
+    CLI tool to run model prediction manually.
+    Useful for debugging and verifying models without starting the full service.
+    """
+    # CLI утилита для запуска предсказания модели вручную.
+    # Удобно для отладки и проверки моделей без запуска всего сервиса.
+    input_data = InferenceData(
+        user_id=user_id,
+        item_id=item_id,
+        model_params=model_params,
+    )
+
+    logger.info(f"Initializing model '{model_key}'...")
+    try:
+        # Use Factory to create configured model instance
+        model = create_model(model_key)
+        # Manually trigger load for CLI usage
+        model.loads()
+    except ValueError as e:
+        logger.error(str(e))
+        raise typer.Exit(code=1)
+
+    logger.info("Running prediction...")
+    result = model.predict(input_data)
+
+    logger.info(f"Prediction result: {result}")
+    return result
 
 
 if __name__ == "__main__":
