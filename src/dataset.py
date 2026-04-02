@@ -8,7 +8,7 @@ import polars as pl
 from tqdm import tqdm
 import typer
 
-from src.config import RAW_DATA_DIR
+from src.config import RAW_DATA_DIR, HF_TOKEN
 
 app = typer.Typer()
 
@@ -31,10 +31,6 @@ def download(
 ):
     from huggingface_hub import snapshot_download
 
-    if token is None:
-        token = os.getenv("HF_TOKEN")
-    if token is None:
-        raise ValueError("HF_TOKEN is not set")
     logger.info("Downloading dataset to {output_dir}...", output_dir=output_dir)
 
     snapshot_download(
@@ -42,7 +38,7 @@ def download(
         repo_type="dataset",
         allow_patterns="dataset/small/",
         local_dir=output_dir,
-        token=token,
+        token=HF_TOKEN,
     )
     logger.success("Dataset downloaded.")
 
@@ -113,7 +109,7 @@ def create_target(
         )
     else:
         result_df = _events_df.join(
-            actions_count.with_columns(target=target_process_expr[target_type], on="action_type")
+            actions_count.with_columns(target=target_process_expr[target_type]), on="action_type"
         )
     if isinstance(events_df, pl.LazyFrame):
         return result_df
@@ -217,6 +213,8 @@ def ndcg_at_k(
     """
     Computes user-based NDCG@k for graded relevance in a recommendation setting.
 
+    Vectorized implementation using polars operations instead of per-user loops.
+
     Parameters
     ----------
     user_based_df : pl.DataFrame
@@ -253,6 +251,74 @@ def ndcg_at_k(
     4. Computes IDCG@k using the ideal order (sorting by ground-truth relevancy).
     5. Returns NDCG@k = DCG@k / IDCG@k, or 0.0 if IDCG@k = 0.
     """
+    _ITEM = "__item"
+    _RANK = "__rank"
+
+    truth = (
+        user_based_df.select("user_id", true_items_col, relevancy_col)
+        .explode(true_items_col, relevancy_col)
+        .group_by("user_id", true_items_col)
+        .agg(pl.col(relevancy_col).max())
+        .rename({true_items_col: _ITEM})
+    )
+
+    preds = (
+        user_based_df.select("user_id", predicted_items_col, predicted_score_col)
+        .explode(predicted_items_col, predicted_score_col)
+        .rename({predicted_items_col: _ITEM})
+    )
+
+    preds_rel = preds.join(truth, on=["user_id", _ITEM], how="left").fill_null(0)
+
+    gain_expr = (
+        pl.col(relevancy_col) / (pl.col(_RANK) + 1).cast(pl.Float64).log(2)
+    ).sum()
+
+    dcg = (
+        preds_rel.with_columns(
+            pl.col(predicted_score_col)
+            .rank("ordinal", descending=True)
+            .over("user_id")
+            .alias(_RANK)
+        )
+        .filter(pl.col(_RANK) <= top_k)
+        .group_by("user_id")
+        .agg(gain_expr.alias("dcg"))
+    )
+
+    idcg = (
+        preds_rel.with_columns(
+            pl.col(relevancy_col)
+            .rank("ordinal", descending=True)
+            .over("user_id")
+            .alias(_RANK)
+        )
+        .filter(pl.col(_RANK) <= top_k)
+        .group_by("user_id")
+        .agg(gain_expr.alias("idcg"))
+    )
+
+    return (
+        dcg.join(idcg, on="user_id")
+        .with_columns(
+            pl.when(pl.col("idcg") == 0)
+            .then(0.0)
+            .otherwise(pl.col("dcg") / pl.col("idcg"))
+            .alias("ndcg")
+        )
+        .select("user_id", "ndcg")
+    )
+
+
+def _ndcg_at_k_loop(
+    user_based_df: pl.DataFrame,
+    relevancy_col: str,
+    true_items_col: str,
+    predicted_items_col: str,
+    predicted_score_col: str,
+    top_k: int = 15,
+) -> pl.DataFrame:
+    """Исходная реализация ndcg_at_k через цикл по пользователям (для тестов)."""
     user_ids = []
     ndcgs = []
     for row in user_based_df.iter_rows(named=True):
@@ -261,7 +327,7 @@ def ndcg_at_k(
         )
         true_items = true_items.group_by("truth_items").agg(
             pl.col("relevancy").max()
-        )  # Берем максимальную релевантность для товара
+        )
         predictions = (
             pl.DataFrame(
                 {"predicted_items": row[predicted_items_col], "score": row[predicted_score_col]}
@@ -292,6 +358,42 @@ def ndcg_at_k(
         user_ids.append(row["user_id"])
         ndcgs.append(0.0 if idcg == 0 else dcg / idcg)
     return pl.DataFrame({"user_id": user_ids, "ndcg": ndcgs})
+
+
+def precision_recall_at_k(
+    df: pl.DataFrame,
+    predicted_items_col: str,
+    true_items_col: str,
+    top_k: int = 15,
+) -> tuple[float, float]:
+    """
+    Вычисляет средние Precision@k и Recall@k по всем пользователям.
+
+    Parameters
+    ----------
+    df : pl.DataFrame
+        Датафрейм с колонками предсказанных и истинных айтемов.
+        Каждая строка соответствует одному пользователю.
+    predicted_items_col : str
+        Имя колонки со списком предсказанных айтемов (pl.List[str]).
+    true_items_col : str
+        Имя колонки со списком истинных айтемов (pl.List[str]).
+    top_k : int, optional
+        Количество рекомендаций для обрезки. По умолчанию 15.
+
+    Returns
+    -------
+    tuple[float, float]
+        Кортеж (precision@k, recall@k), усреднённых по всем пользователям.
+    """
+    top_k_preds = pl.col(predicted_items_col).list.head(top_k)
+    hits_expr = top_k_preds.list.set_intersection(pl.col(true_items_col)).list.len()
+
+    metrics = df.select(
+        (hits_expr / top_k).mean().alias("precision"),
+        (hits_expr / pl.col(true_items_col).list.len()).mean().alias("recall"),
+    )
+    return metrics["precision"].item(), metrics["recall"].item()
 
 
 def get_last_k_user_interactions(

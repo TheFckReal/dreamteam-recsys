@@ -19,15 +19,26 @@ classifiers = [
     
 ]
 dependencies = [
+    "cachetools>=6.2.4",
+    "fastapi[standard]>=0.124.4",
     "huggingface-hub>=1.1.4",
+    "ipykernel>=7.1.0",
+    "jupyter>=1.1.1",
     "loguru",
     "mkdocs",
+    "optuna>=4.7.0",
     "pip",
+    "pm-implicit>=0.7.2",
     "polars>=1.35.2",
+    "pwdlib[argon2]>=0.3.0",
+    "pyjwt>=2.10.1",
     "pytest",
     "python-dotenv",
+    "python-multipart>=0.0.20",
     "ruff",
     "scikit-learn>=1.7.2",
+    "scipy",
+    "sqlalchemy>=2.0.45",
     "tqdm",
     "typer",
 ]
