@@ -91,10 +91,11 @@ def create_target(
     PolarsFrame
         Dataframe with created target column(s).
     """
+    inv_freq = pl.col("len").sum() / pl.col("len")
     target_process_expr = {
-        "log_target": pl.col("len").log1p(),
-        "sqrt_target": pl.col("len").sqrt(),
-        "unproccessed": pl.col("len"),
+        "log_target": inv_freq.log1p(),
+        "sqrt_target": inv_freq.sqrt(),
+        "unproccessed": inv_freq,
     }
     actions_count = events_df.group_by("action_type").agg(len=pl.len()).lazy()
     _events_df = events_df.lazy()
@@ -270,9 +271,7 @@ def ndcg_at_k(
 
     preds_rel = preds.join(truth, on=["user_id", _ITEM], how="left").fill_null(0)
 
-    gain_expr = (
-        pl.col(relevancy_col) / (pl.col(_RANK) + 1).cast(pl.Float64).log(2)
-    ).sum()
+    gain_expr = (pl.col(relevancy_col) / (pl.col(_RANK) + 1).cast(pl.Float64).log(2)).sum()
 
     dcg = (
         preds_rel.with_columns(
@@ -288,10 +287,7 @@ def ndcg_at_k(
 
     idcg = (
         preds_rel.with_columns(
-            pl.col(relevancy_col)
-            .rank("ordinal", descending=True)
-            .over("user_id")
-            .alias(_RANK)
+            pl.col(relevancy_col).rank("ordinal", descending=True).over("user_id").alias(_RANK)
         )
         .filter(pl.col(_RANK) <= top_k)
         .group_by("user_id")
@@ -325,9 +321,7 @@ def _ndcg_at_k_loop(
         true_items = pl.DataFrame(
             {"truth_items": row[true_items_col], "relevancy": row[relevancy_col]}
         )
-        true_items = true_items.group_by("truth_items").agg(
-            pl.col("relevancy").max()
-        )
+        true_items = true_items.group_by("truth_items").agg(pl.col("relevancy").max())
         predictions = (
             pl.DataFrame(
                 {"predicted_items": row[predicted_items_col], "score": row[predicted_score_col]}
