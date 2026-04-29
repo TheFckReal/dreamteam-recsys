@@ -155,8 +155,8 @@ class SVDModel(InferenceModel):
         return float(score)
 
     def _predict_dataframe(self, data: pl.DataFrame) -> pl.Series:
-
         raise NotImplementedError("Batch prediction is not implemented for SVDModel")
+
 
 class IALSModel(InferenceModel):
     def __init__(self):
@@ -213,17 +213,14 @@ class IALSModel(InferenceModel):
         i_idxs = [rec.item_to_idx.get(iid) for iid in item_ids]
 
         scores = np.zeros(len(user_ids), dtype=np.float32)
-        valid = np.array(
-            [(u is not None and i is not None) for u, i in zip(u_idxs, i_idxs)]
-        )
+        valid = np.array([(u is not None and i is not None) for u, i in zip(u_idxs, i_idxs)])
         if valid.any():
             valid_u = np.array([u for u, v in zip(u_idxs, valid) if v])
             valid_i = np.array([i for i, v in zip(i_idxs, valid) if v])
-            scores[valid] = np.sum(
-                user_factors[valid_u] * item_factors[valid_i], axis=1
-            )
+            scores[valid] = np.sum(user_factors[valid_u] * item_factors[valid_i], axis=1)
 
         return pl.Series("score", scores)
+
 
 @register_model("svd_v1")
 def _create_svd_model() -> InferenceModel:

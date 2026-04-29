@@ -15,7 +15,6 @@ app = typer.Typer()
 
 
 def create_mappings(df: pl.DataFrame):
-
     unique_users = df["user_id"].unique().to_list()
     unique_items = df["item_id"].unique().to_list()
 

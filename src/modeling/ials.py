@@ -260,9 +260,7 @@ def run_ials_experiment(
     known_users = set(rec.user_to_idx.keys())
     known_items = set(rec.item_to_idx.keys())
     test_filtered = test_df.filter(pl.col("user_id").is_in(known_users))
-    print(
-        f"Пользователей в тесте после фильтрации: " f"{test_filtered.select('user_id').n_unique()}"
-    )
+    print(f"Пользователей в тесте после фильтрации: {test_filtered.select('user_id').n_unique()}")
 
     user_test_truth = test_filtered.group_by("user_id").agg(
         pl.col("item_id").alias("true_items"),
