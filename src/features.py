@@ -1373,8 +1373,8 @@ def cli_all(
     day_from: int | None = DEFAULT_DAY_FROM,
     day_to: int | None = DEFAULT_DAY_TO,
     num_days: int = 30,
-    top_users: int | None = 20_000,
-    top_items: int | None = 20_000,
+    top_users: int | None = None,
+    top_items: int | None = None,
     n_last_days: int = 10,
     skip_select: bool = False,
     target_type: str = typer.Option(
