@@ -2,7 +2,7 @@
 
 ## 1. Обзор экспериментов
 
-Исследовались четыре модели коллаборативной фильтрации для задачи рекомендаций:
+Исследовались пять моделей рекомендательных систем:
 
 | Модель                       | Источник                        | Тип                                      | Библиотека                     |
 | -----------------------------| ------------------------------- | ---------------------------------------- | ------------------------------ |
@@ -10,21 +10,23 @@
 | **iALS** (implicit ALS)      | `ials_research.ipynb`           | Matrix Factorization (implicit feedback) | implicit                       |
 | **EASE**                     | `ease_research.ipynb`           | Embarrassingly Shallow Autoencoder       | numpy (собственная реализация) |
 | **GradientBoosting**         | `trees_test2.ipynb`             | Trees                                    | CatBoostRanking                |
-| **Mult-VAE**                 | `vae_research (1).ipynb`        | Variational Autoencoder                  | PyTorch (собственная реализация) |
+| **Mult-VAE**                 | `vae_research.ipynb`        | Variational Autoencoder                  | PyTorch (собственная реализация) |
+| **TransformerRanker**        | `transformer_research.ipynb`  | Transformer Encoder (sequence-to-target) | PyTorch (собственная реализация) |
 
 ### Данные
 
 - **Датасет:** marketplace (T-ECD-small), ~130M событий, действия: `view`, `click`, `clickout`, `like`.
 - **EASE** обучалась на ограниченном подмножестве (top-5000 популярных товаров) из-за нехватки оперативной памяти.
 - **Mult-VAE** обучалась на top-20000 популярных товаров (агрегация через 30-дневное окно, снимок дня 1305).
+- **TransformerRanker** обучалась на 5000 пользователях и top-5000 товарах (сэмплирование из-за вычислительных ограничений).
 
 ### Методология оценки
 
 - **Разбиение:** Global Temporal Split 80/20 (по дням), 1 день-буфер между train и test.
-- **Таргет (SVD, iALS, Mult-VAE):** взвешиванный таргет по обратной частоте по типам действий; проверялись варианты `target`, `log_target`, `sqrt_target`. Лучшим оказался `log_target`.
+- **Таргет (SVD, iALS, Mult-VAE, TransformerRanker):** взвешиванный таргет по обратной частоте по типам действий; проверялись варианты `target`, `log_target`, `sqrt_target`. Лучшим оказался `log_target` для MF-моделей и `target` для TransformerRanker.
 - **Таргет (EASE):** бинарный (факт взаимодействия = 1).
 - **Метрики ранжирования:** NDCG@15, Precision@15, Recall@15.
-- **Метрики регрессии (SVD, iALS):** RMSE, MAE.
+- **Метрики регрессии (SVD, iALS, TransformerRanker):** RMSE, MAE.
 
 ---
 
