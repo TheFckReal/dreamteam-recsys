@@ -20,10 +20,12 @@ classifiers = [
 ]
 dependencies = [
     "cachetools>=6.2.4",
+    "datasets>=4.8.5",
     "fastapi[standard]>=0.124.4",
     "huggingface-hub>=1.1.4",
-    "ipykernel>=7.1.0",
+    "ipykernel>=6.29,<7",
     "jupyter>=1.1.1",
+    "pyzmq>=26,<27",
     "loguru",
     "mkdocs",
     "optuna>=4.7.0",
@@ -31,6 +33,7 @@ dependencies = [
     "pm-implicit>=0.7.2",
     "polars>=1.35.2",
     "pwdlib[argon2]>=0.3.0",
+    "pyarrow>=24.0.0",
     "pyjwt>=2.10.1",
     "pytest",
     "python-dotenv",
@@ -39,6 +42,7 @@ dependencies = [
     "scikit-learn>=1.7.2",
     "scipy",
     "sqlalchemy>=2.0.45",
+    "torch>=2.11.0",
     "tqdm",
     "typer",
 ]
@@ -56,4 +60,18 @@ extend-select = ["I"]  # Add import sorting
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
 force-sort-within-sections = true
+
+# --- PyTorch CUDA build ------------------------------------------------------
+# Берём сборки torch с официального индекса PyTorch (CUDA 12.4). Для CPU-only
+# окружений (CI/Linux без GPU) можно временно переключить на ``cpu``:
+#   [[tool.uv.index]]
+#   name = "pytorch"
+#   url = "https://download.pytorch.org/whl/cpu"
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch" }
 
