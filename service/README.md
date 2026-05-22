@@ -64,6 +64,39 @@ docker compose --env-file ../.env up -d
 
 Для входа в MinIO используйте `MINIO_ROOT_USER` и `MINIO_ROOT_PASSWORD` из `.env`.
 
+## Адреса для Python-скриптов
+
+Для локального доступы из скрипта к mlflow:
+
+```python
+import mlflow
+
+mlflow.set_tracking_uri("http://localhost:5050")
+```
+
+Для прямого доступа к MinIO/S3 из Python используйте:
+
+```env
+MLFLOW_S3_ENDPOINT_URL=http://localhost:9000
+AWS_ACCESS_KEY_ID=<MINIO_ROOT_USER из .env>
+AWS_SECRET_ACCESS_KEY=<MINIO_ROOT_PASSWORD из .env>
+```
+
+Если Python-код запускается внутри другого Docker-контейнера в сети `internal`, используйте внутренние адреса:
+
+```env
+MLFLOW_TRACKING_URI=http://mlflow:5000
+MLFLOW_S3_ENDPOINT_URL=http://s3:9000
+```
+
+Открытые наружу порты:
+
+- `5050` -> MLflow tracking server и UI;
+- `9000` -> MinIO S3 API;
+- `9001` -> MinIO web UI.
+
+PostgreSQL наружу не открыт. Он доступен только контейнерам внутри Docker-сети.
+
 ## Остановка
 
 Из папки `service`:
