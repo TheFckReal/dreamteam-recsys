@@ -286,7 +286,7 @@ def ndcg_at_k(
     )
 
     idcg = (
-        preds_rel.with_columns(
+        truth.with_columns(
             pl.col(relevancy_col).rank("ordinal", descending=True).over("user_id").alias(_RANK)
         )
         .filter(pl.col(_RANK) <= top_k)
@@ -295,9 +295,9 @@ def ndcg_at_k(
     )
 
     return (
-        dcg.join(idcg, on="user_id")
+        dcg.join(idcg, on="user_id", how="left")
         .with_columns(
-            pl.when(pl.col("idcg") == 0)
+            pl.when(pl.col("idcg").is_null() | (pl.col("idcg") == 0))
             .then(0.0)
             .otherwise(pl.col("dcg") / pl.col("idcg"))
             .alias("ndcg")
