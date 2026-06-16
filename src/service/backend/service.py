@@ -122,6 +122,47 @@ class PredictionService:
             "model_key": model_key,
         }
 
+    def make_recommendations(
+        self, user_id: int, model_key: models.ModelsType, top_k: int = 15
+    ) -> dict:
+        """
+        Формирует top-k рекомендаций для пользователя и логирует запрос в историю.
+        """
+        start = time.monotonic()
+        status = "ok"
+        recommendations: list[dict] = []
+
+        try:
+            model = self._get_or_load_model(model_key)
+
+            logger.info(f"Recommending top-{top_k} with model '{model_key}' for user {user_id}")
+            recs = model.recommend(user_id, top_k)
+            recommendations = [
+                {"rank": rank, "item_id": item_id, "score": float(score)}
+                for rank, (item_id, score) in enumerate(recs, start=1)
+            ]
+        except Exception:
+            status = "error"
+            logger.exception("Recommendation failed")
+            raise
+        finally:
+            duration_ms = int((time.monotonic() - start) * 1000)
+            record = {
+                "user_id": user_id,
+                "item_id": f"top{top_k}",
+                "model_params": {"top_k": top_k},
+                "model_key": model_key,
+                "status": status,
+                "duration_ms": duration_ms,
+            }
+            self._history_service.log_request(record)
+
+        return {
+            "user_id": user_id,
+            "model_key": model_key,
+            "recommendations": recommendations,
+        }
+
     def _get_or_load_model(self, model_key: models.ModelsType) -> models.InferenceModel:
         """
         Retrieves a model from cache or loads it if it's missing.

@@ -87,6 +87,17 @@ class DummyModel(InferenceModel):
             raise RuntimeError("Model is not loaded")
         return pl.Series([0.5] * len(data))
 
+    def recommend(self, user_id: int, top_k: int = 15) -> list[tuple[str | int, float]]:
+        """Возвращает синтетические рекомендации (заглушка для демо/тестов)."""
+        if not self._is_loaded:
+            raise RuntimeError("Model is not loaded")
+        # Детерминированные псевдослучайные айтемы, зависящие от user_id,
+        # с убывающим score — достаточно для демонстрации UI.
+        rng = random.Random(user_id)
+        items = [(f"item_{rng.randint(1000, 9999)}", round(rng.uniform(0.3, 1.0), 4)) for _ in range(top_k)]
+        items.sort(key=lambda x: x[1], reverse=True)
+        return items
+
     def loads(self) -> None:
         """Simulates loading weights from disk/network."""
         if self._is_loaded:
@@ -165,6 +176,25 @@ class SVDModel(InferenceModel):
     def _predict_dataframe(self, data: pl.DataFrame) -> pl.Series:
         raise NotImplementedError("Batch prediction is not implemented for SVDModel")
 
+    def recommend(self, user_id: int, top_k: int = 15) -> list[tuple[str | int, float]]:
+        """Top-k рекомендации брутфорсом: score = item_features @ user_vec."""
+        if not self._is_loaded:
+            raise RuntimeError("SVD Model is not loaded")
+
+        u_idx = self.user_to_idx.get(user_id)
+        if u_idx is None:
+            raise ValueError(f"user_id={user_id} отсутствует в обучающих данных модели")
+
+        u_vec = self.user_features[u_idx]
+        scores_all = np.asarray(self.item_features @ u_vec).ravel()
+
+        k = min(top_k, scores_all.shape[0])
+        top_idx = np.argpartition(-scores_all, k - 1)[:k]
+        top_idx = top_idx[np.argsort(-scores_all[top_idx])]
+
+        idx_to_item = {v: key for key, v in self.item_to_idx.items()}
+        return [(idx_to_item[int(i)], float(scores_all[int(i)])) for i in top_idx]
+
 
 class IALSModel(InferenceModel):
     def __init__(self):
@@ -232,6 +262,20 @@ class IALSModel(InferenceModel):
             scores[valid] = np.sum(user_factors[valid_u] * item_factors[valid_i], axis=1)
 
         return pl.Series("score", scores)
+
+    def recommend(self, user_id: int, top_k: int = 15) -> list[tuple[str | int, float]]:
+        """Top-k рекомендации через implicit.recommend (filter_already_liked_items=True)."""
+        rec = self._ensure_ready()
+
+        u_idx = rec.user_to_idx.get(user_id)
+        if u_idx is None:
+            raise ValueError(f"user_id={user_id} отсутствует в обучающих данных модели")
+
+        item_idxs, scores = rec.recommend_batch(np.array([u_idx]), top_k=top_k)
+        return [
+            (rec.idx_to_item[int(idx)], float(score))
+            for idx, score in zip(item_idxs[0], scores[0])
+        ]
 
 
 @register_model("svd_v1")
@@ -333,6 +377,20 @@ class VAEModel(InferenceModel):
             scores[k] = row[i_idx]
 
         return pl.Series("score", scores)
+
+    def recommend(self, user_id: int, top_k: int = 15) -> list[tuple[str | int, float]]:
+        """Top-k рекомендации Mult-VAE с фильтрацией уже виденных айтемов."""
+        rec = self._ensure_ready()
+
+        u_idx = rec.user_to_idx.get(user_id)
+        if u_idx is None:
+            raise ValueError(f"user_id={user_id} отсутствует в обучающих данных модели")
+
+        item_idxs, scores = rec.recommend_batch(np.array([u_idx]), top_k=top_k)
+        return [
+            (rec.idx_to_item[int(idx)], float(score))
+            for idx, score in zip(item_idxs[0], scores[0])
+        ]
 
 
 @register_model("vae_v1")
