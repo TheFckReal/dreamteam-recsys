@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
-from typing import Any, List, Union, cast, overload
+from typing import Any, List, Tuple, Union, cast, overload
 
 import polars as pl
 
@@ -8,6 +8,9 @@ from src.modeling.sharing import InferenceData
 
 PredictionInput = Union[InferenceData, pl.DataFrame, Iterable[InferenceData]]
 PredictionOutput = Union[float, List[float], pl.Series]
+
+# (item_id, score) — одна позиция топ-N рекомендаций.
+RecommendItem = Tuple[Union[str, int], float]
 
 
 class InferenceModel(ABC):
@@ -79,6 +82,25 @@ class InferenceModel(ABC):
         Should be optimized using vector operations.
         """
         pass
+
+    def recommend(self, user_id: int, top_k: int = 15) -> List[RecommendItem]:
+        """
+        Returns top-k item recommendations for a user.
+
+        Default implementation raises ``NotImplementedError``. Models capable of
+        generating recommendations (e.g. matrix-factorization or autoencoder based)
+        should override this method.
+
+        Returns
+        -------
+        list[tuple[item_id, score]]
+            Items ordered by descending relevance score.
+        """
+        # Метод формирует top-k рекомендаций для пользователя.
+        # По умолчанию не реализован — переопределяется в моделях, которые это умеют.
+        raise NotImplementedError(
+            f"{type(self).__name__} does not support top-k recommendations"
+        )
 
     @abstractmethod
     def loads(self) -> None:

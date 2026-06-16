@@ -67,13 +67,19 @@ class HistoryRepository:
             )
 
             result = stats_query.first()
+            if result is None:
+                return {"total_requests": 0, "avg_duration": 0.0, "min_duration": 0,
+                        "max_duration": 0, "success_count": 0, "error_count": 0,
+                        "duration_quantiles": {"p50": 0, "p95": 0, "p99": 0},
+                        "avg_request_size": 0.0, "avg_token_count": 0.0,
+                        "distinct_models": 0, "by_model": [], "by_model_key": []}
             stats = {
-                "total_requests": result.total_requests or 0,
-                "avg_duration": result.avg_duration or 0,
-                "min_duration": result.min_duration or 0,
-                "max_duration": result.max_duration or 0,
-                "success_count": result.success_count or 0,
-                "error_count": result.error_count or 0,
+                "total_requests": int(result.total_requests or 0),
+                "avg_duration": float(result.avg_duration or 0),
+                "min_duration": int(result.min_duration or 0),
+                "max_duration": int(result.max_duration or 0),
+                "success_count": int(result.success_count or 0),
+                "error_count": int(result.error_count or 0),
             }
 
             # Квантили распределения времени выполнения
@@ -83,7 +89,7 @@ class HistoryRepository:
                 .order_by(History.duration_ms)
                 .all()
             )
-            durations = [d[0] for d in durations]
+            durations = [int(d[0]) for d in durations]
 
             # Статистики по размеру запросов
             size_stats_query = db.query(
@@ -93,9 +99,9 @@ class HistoryRepository:
             )
             size_result = size_stats_query.first()
             size_stats = {
-                "avg_request_size": size_result.avg_request_size or 0,
-                "avg_token_count": size_result.avg_token_count or 0,
-                "distinct_models": size_result.distinct_models or 0,
+                "avg_request_size": float((size_result.avg_request_size if size_result else None) or 0),
+                "avg_token_count": float((size_result.avg_token_count if size_result else None) or 0),
+                "distinct_models": int((size_result.distinct_models if size_result else None) or 0),
             }
 
             # Вычисляем квантили
@@ -128,10 +134,10 @@ class HistoryRepository:
             stats["by_model"] = [
                 {
                     "model_key": row.model_key,
-                    "request_count": row.request_count,
-                    "avg_duration": row.avg_duration,
-                    "avg_request_size": row.avg_request_size,
-                    "avg_token_count": row.avg_token_count,
+                    "request_count": int(row.request_count),
+                    "avg_duration": float(row.avg_duration or 0),
+                    "avg_request_size": float(row.avg_request_size or 0),
+                    "avg_token_count": float(row.avg_token_count or 0),
                 }
                 for row in by_model
             ]
@@ -150,8 +156,8 @@ class HistoryRepository:
             stats["by_model_key"] = [
                 {
                     "model_key": row.model_key,
-                    "request_count": row.request_count,
-                    "avg_duration": row.avg_duration,
+                    "request_count": int(row.request_count),
+                    "avg_duration": float(row.avg_duration or 0),
                 }
                 for row in by_model_key
             ]
