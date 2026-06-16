@@ -26,7 +26,11 @@ REPORTS_DIR = PROJ_ROOT / "reports"
 FIGURES_DIR = REPORTS_DIR / "figures"
 
 # Database
-DATABASE_URL = f"sqlite:///{DATA_DIR / 'interim' / 'app.db'}"
+_db_host = os.getenv("DB_HOST", "localhost")
+_pg_user = os.getenv("POSTGRES_USER") or ""
+_pg_pass = os.getenv("POSTGRES_PASSWORD") or ""
+_pg_db = os.getenv("POSTGRES_DB") or ""
+DATABASE_URL = f"postgresql+psycopg2://{_pg_user}:{_pg_pass}@{_db_host}:5444/{_pg_db}"
 
 HF_TOKEN = os.getenv("HF_TOKEN")
 if HF_TOKEN is None:

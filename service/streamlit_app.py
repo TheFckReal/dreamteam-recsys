@@ -1,4 +1,4 @@
-"""Streamlit frontend for the DreamTeam RecSys API."""
+﻿"""Streamlit frontend for the DreamTeam RecSys API."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ import streamlit as st  # type: ignore[import-untyped]
 
 st.set_page_config(
     page_title="DreamTeam RecSys",
-    page_icon="🎯",
+    page_icon=":dart:",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -280,7 +280,7 @@ def api_predict(
 
 
 def api_recommend(user_id: int, model_key: str, top_k: int) -> dict:
-    # /recommend объявлен с одним Pydantic body-параметром → плоское тело.
+    # /recommend объявлен с одним Pydantic body-параметром — плоское тело.
     try:
         payload = {"user_id": user_id, "model_key": model_key, "top_k": top_k}
         r = requests.post(f"{_base()}/recommend", json=payload, headers=_headers(), timeout=30)
@@ -371,11 +371,9 @@ def _gauge(value: float, title: str, color: str = "#10B981") -> go.Figure:
 
 def render_sidebar() -> str:
     with st.sidebar:
-        # Logo / Title
         st.markdown(
             """
             <div style="text-align:center; padding: 1rem 0 1.5rem;">
-                <div style="font-size:3rem;">🎯</div>
                 <div style="font-size:1.3rem; font-weight:700;
                             background:linear-gradient(90deg,#A78BFA,#60A5FA);
                             -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
@@ -389,8 +387,7 @@ def render_sidebar() -> str:
             unsafe_allow_html=True,
         )
 
-        # API URL
-        with st.expander("⚙️ Настройки API", expanded=False):
+        with st.expander("Настройки API", expanded=False):
             new_url = st.text_input(
                 "Base URL", value=st.session_state.api_url, label_visibility="collapsed"
             )
@@ -400,9 +397,8 @@ def render_sidebar() -> str:
 
         st.markdown("<hr style='border-color:#2D2D44;margin:.5rem 0 1rem;'>", unsafe_allow_html=True)
 
-        # Auth block
         if not st.session_state.token:
-            st.markdown("**🔐 Войти**")
+            st.markdown("**Войти**")
             username = st.text_input("Логин", placeholder="dreamer")
             password = st.text_input("Пароль", type="password", placeholder="••••••••")
             if st.button("Войти", width="stretch"):
@@ -435,7 +431,7 @@ def render_sidebar() -> str:
                 <div style="background:#252535;border-radius:10px;padding:.8rem 1rem;margin-bottom:.8rem;">
                     <div style="font-size:.8rem;color:#64748B;">Вы вошли как</div>
                     <div style="font-weight:700;font-size:1rem;color:#E2E8F0;margin:.2rem 0;">
-                        👤 {st.session_state.username}
+                        {st.session_state.username}
                     </div>
                     {role_badge}
                 </div>
@@ -450,27 +446,21 @@ def render_sidebar() -> str:
 
         st.markdown("<hr style='border-color:#2D2D44;margin:1rem 0;'>", unsafe_allow_html=True)
 
-        # Navigation
-        st.markdown(
-            "<div style='font-size:.7rem;color:#64748B;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.5rem;'>Навигация</div>",
-            unsafe_allow_html=True,
-        )
         page = st.radio(
             "Навигация",
             options=[
-                "🏠 Обзор",
-                "🔮 Предсказание",
-                "🎁 Рекомендации",
-                "📜 История",
-                "📊 Статистика",
-                "🔑 Админ",
+                "Обзор",
+                "Предсказание",
+                "Рекомендации",
+                "История",
+                "Статистика",
+                "Админ",
             ],
             label_visibility="collapsed",
         )
 
         st.markdown("<hr style='border-color:#2D2D44;margin:1rem 0;'>", unsafe_allow_html=True)
 
-        # API status indicator
         try:
             r = requests.get(f"{_base()}/stats", timeout=2)
             status_ok = r.status_code == 200
@@ -499,12 +489,12 @@ def render_sidebar() -> str:
 
 
 def page_overview() -> None:
-    st.markdown('<div class="section-header">🏠 Обзор системы</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">Обзор системы</div>', unsafe_allow_html=True)
 
     result = api_stats()
     if not result["ok"]:
         st.markdown(
-            f'<div class="recsys-card result-error">❌ Нет доступа к API: {result["data"].get("detail","")}</div>',
+            f'<div class="recsys-card result-error">Нет доступа к API: {result["data"].get("detail","")}</div>',
             unsafe_allow_html=True,
         )
         return
@@ -515,12 +505,11 @@ def page_overview() -> None:
     avg_dur = stats["avg_duration_ms"]
     p95 = stats.get("duration_quantiles", {}).get("p95", 0)
 
-    # Top metrics
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("📥 Всего запросов", f"{total:,}")
-    c2.metric("✅ Успешность", f"{success_rate * 100:.1f}%")
-    c3.metric("⚡ Среднее время", f"{avg_dur:.1f} мс")
-    c4.metric("📈 p95 задержка", f"{p95} мс")
+    c1.metric("Всего запросов", f"{total:,}")
+    c2.metric("Успешность", f"{success_rate * 100:.1f}%")
+    c3.metric("Среднее время", f"{avg_dur:.1f} мс")
+    c4.metric("p95 задержка", f"{p95} мс")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -528,7 +517,7 @@ def page_overview() -> None:
 
     with col_gauge:
         st.markdown('<div class="recsys-card">', unsafe_allow_html=True)
-        st.markdown("<h3>📉 Success Rate</h3>", unsafe_allow_html=True)
+        st.markdown("<h3>Success Rate</h3>", unsafe_allow_html=True)
         fig_gauge = _gauge(success_rate, "Success Rate")
         st.plotly_chart(fig_gauge, use_container_width=True, key="gauge_overview")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -537,7 +526,7 @@ def page_overview() -> None:
         by_model = stats.get("by_model", [])
         if by_model:
             st.markdown('<div class="recsys-card">', unsafe_allow_html=True)
-            st.markdown("<h3>🤖 Запросы по моделям</h3>", unsafe_allow_html=True)
+            st.markdown("<h3>Запросы по моделям</h3>", unsafe_allow_html=True)
             df_m = pd.DataFrame(by_model)
             fig_bar = px.bar(
                 df_m,
@@ -553,16 +542,15 @@ def page_overview() -> None:
             st.markdown("</div>", unsafe_allow_html=True)
         else:
             st.markdown(
-                '<div class="recsys-card"><h3>🤖 Запросы по моделям</h3>'
+                '<div class="recsys-card"><h3>Запросы по моделям</h3>'
                 '<p style="color:#64748B;">Данных пока нет. Сделайте первое предсказание!</p></div>',
                 unsafe_allow_html=True,
             )
 
-    # Quantiles chart
     quantiles = stats.get("duration_quantiles", {})
     if quantiles:
         st.markdown('<div class="recsys-card">', unsafe_allow_html=True)
-        st.markdown("<h3>⏱️ Перцентили задержки</h3>", unsafe_allow_html=True)
+        st.markdown("<h3>Перцентили задержки</h3>", unsafe_allow_html=True)
         q_labels = list(quantiles.keys())
         q_vals = list(quantiles.values())
         fig_q = go.Figure(
@@ -584,7 +572,7 @@ def page_overview() -> None:
 
 
 def page_predict() -> None:
-    st.markdown('<div class="section-header">🔮 Получить предсказание</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">Получить предсказание</div>', unsafe_allow_html=True)
 
     col_form, col_result = st.columns([1, 1], gap="large")
 
@@ -594,11 +582,10 @@ def page_predict() -> None:
 
         user_id = int(st.number_input("User ID", min_value=0, value=42, step=1))
         item_id = st.text_input("Item ID", value="nfmcg_100", placeholder="nfmcg_6702130")
-
         model_key = st.selectbox("Модель", MODELS, index=0)
 
         st.markdown("<br>", unsafe_allow_html=True)
-        run = st.button("🚀 Получить предсказание", width="stretch")
+        run = st.button("Получить предсказание", width="stretch")
         st.markdown("</div>", unsafe_allow_html=True)
 
     with col_result:
@@ -632,7 +619,7 @@ def page_predict() -> None:
                     f"""
                     <div class="result-success">
                         <div style="font-size:.85rem;color:#6EE7B7;margin-bottom:.8rem;">
-                            ✅ Успешно · {elapsed:.1f} мс
+                            Успешно · {elapsed:.1f} мс
                         </div>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;">
                             <div>
@@ -658,6 +645,8 @@ def page_predict() -> None:
                     """,
                     unsafe_allow_html=True,
                 )
+                fig_s = _gauge(data["score"], "Relevance Score", score_color)
+                st.plotly_chart(fig_s, use_container_width=True, key="gauge_score")
             else:
                 detail = res["data"].get("detail", "Неизвестная ошибка")
                 code = res["status_code"]
@@ -665,7 +654,7 @@ def page_predict() -> None:
                     f"""
                     <div class="result-error">
                         <div style="font-size:.85rem;color:#FCA5A5;margin-bottom:.5rem;">
-                            ❌ Ошибка {code if code else "соединения"}
+                            Ошибка {code if code else "соединения"}
                         </div>
                         <div style="color:#E2E8F0;">{detail}</div>
                     </div>
@@ -686,7 +675,7 @@ def page_predict() -> None:
                 f"""
                 <div class="result-success">
                     <div style="font-size:.85rem;color:#6EE7B7;margin-bottom:.8rem;">
-                        ✅ {elapsed:.1f} мс
+                        {elapsed:.1f} мс
                     </div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;">
                         <div>
@@ -716,18 +705,17 @@ def page_predict() -> None:
                 """
                 <div class="recsys-card" style="display:flex;flex-direction:column;align-items:center;
                      justify-content:center;min-height:200px;text-align:center;">
-                    <div style="font-size:3rem;margin-bottom:1rem;">🎯</div>
-                    <div style="color:#94A3B8;">Заполните форму и нажмите<br><strong>«Получить предсказание»</strong></div>
+                    <div style="color:#94A3B8;">Заполните форму и нажмите<br>
+                        <strong>«Получить предсказание»</strong></div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
-    # Session history table
     if st.session_state.prediction_history:
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown('<div class="recsys-card">', unsafe_allow_html=True)
-        st.markdown("<h3>📋 История сессии</h3>", unsafe_allow_html=True)
+        st.markdown("<h3>История сессии</h3>", unsafe_allow_html=True)
         df_hist = pd.DataFrame(st.session_state.prediction_history[::-1])
         st.dataframe(df_hist, use_container_width=True, hide_index=True)
 
@@ -747,7 +735,7 @@ def page_predict() -> None:
 
 
 KNOWN_USERS = {
-    "dummy": "любой целый ID (42, 123, …)",
+    "dummy": "любой целый ID (42, 123, ...)",
     "svd_v1": "388, 1267, 1762, 2267, 2874, 3395, 3489, 4016 (1.6M пользователей)",
     "vae_v1": "388, 1267, 1762, 2267, 2874, 3395, 3489, 4016 (200k пользователей)",
     "ials_v1": "зависит от артефактов iALS",
@@ -755,9 +743,7 @@ KNOWN_USERS = {
 
 
 def page_recommend() -> None:
-    st.markdown(
-        '<div class="section-header">🎁 Топ-N рекомендаций</div>', unsafe_allow_html=True
-    )
+    st.markdown('<div class="section-header">Топ-N рекомендаций</div>', unsafe_allow_html=True)
 
     st.markdown('<div class="recsys-card">', unsafe_allow_html=True)
     st.markdown("<h3>Параметры</h3>", unsafe_allow_html=True)
@@ -771,8 +757,13 @@ def page_recommend() -> None:
         top_k = int(st.slider("top-N", min_value=5, max_value=50, value=15, step=1))
 
     hint = KNOWN_USERS.get(model_key, "")
+    st.markdown(
+        f"<div style='font-size:.75rem;color:#64748B;margin-bottom:.5rem;'>"
+        f"Валидные user_id для <b>{model_key}</b>: {hint}</div>",
+        unsafe_allow_html=True,
+    )
 
-    run = st.button("🎯 Построить рекомендации", width="stretch")
+    run = st.button("Построить рекомендации", width="stretch")
     st.markdown("</div>", unsafe_allow_html=True)
 
     if not run:
@@ -780,7 +771,6 @@ def page_recommend() -> None:
             """
             <div class="recsys-card" style="display:flex;flex-direction:column;align-items:center;
                  justify-content:center;min-height:160px;text-align:center;">
-                <div style="font-size:3rem;margin-bottom:1rem;">🎁</div>
                 <div style="color:#94A3B8;">Выберите пользователя и модель,<br>
                     затем нажмите <strong>«Построить рекомендации»</strong></div>
             </div>
@@ -797,7 +787,6 @@ def page_recommend() -> None:
     if not res["ok"]:
         detail = res["data"].get("detail", "Неизвестная ошибка")
         code = res["status_code"]
-        # Подсказка при ошибке 404 (user not found)
         hint_html = ""
         if code == 404:
             hint_html = (
@@ -808,7 +797,7 @@ def page_recommend() -> None:
             f"""
             <div class="recsys-card result-error">
                 <div style="font-size:.85rem;color:#FCA5A5;margin-bottom:.5rem;">
-                    ❌ Ошибка {code if code else "соединения"}
+                    Ошибка {code if code else "соединения"}
                 </div>
                 <div style="color:#E2E8F0;">{detail}</div>
                 {hint_html}
@@ -829,12 +818,11 @@ def page_recommend() -> None:
         )
         return
 
-    # Summary
     df = pd.DataFrame(recs)
     c1, c2, c3 = st.columns(3)
-    c1.metric("👤 User ID", data["user_id"])
-    c2.metric("🤖 Модель", data["model_key"])
-    c3.metric("⚡ Время", f"{elapsed:.1f} мс")
+    c1.metric("User ID", data["user_id"])
+    c2.metric("Модель", data["model_key"])
+    c3.metric("Время", f"{elapsed:.1f} мс")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -842,7 +830,7 @@ def page_recommend() -> None:
 
     with col_table:
         st.markdown('<div class="recsys-card">', unsafe_allow_html=True)
-        st.markdown(f"<h3>📋 Топ-{len(recs)} айтемов</h3>", unsafe_allow_html=True)
+        st.markdown(f"<h3>Топ-{len(recs)} айтемов</h3>", unsafe_allow_html=True)
         st.dataframe(
             df[["rank", "item_id", "score"]],
             use_container_width=True,
@@ -852,7 +840,7 @@ def page_recommend() -> None:
 
     with col_chart:
         st.markdown('<div class="recsys-card">', unsafe_allow_html=True)
-        st.markdown("<h3>📊 Score по айтемам</h3>", unsafe_allow_html=True)
+        st.markdown("<h3>Score по айтемам</h3>", unsafe_allow_html=True)
         df_chart = df.copy()
         df_chart["item_id"] = df_chart["item_id"].astype(str)
         fig = px.bar(
@@ -872,13 +860,13 @@ def page_recommend() -> None:
 
 
 def page_history() -> None:
-    st.markdown('<div class="section-header">📜 История запросов</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">История запросов</div>', unsafe_allow_html=True)
 
     if not st.session_state.token:
         st.markdown(
             """
             <div class="recsys-card result-error">
-                🔐 Для просмотра истории необходимо войти в систему.
+                Для просмотра истории необходимо войти в систему.
                 <br><span style="color:#94A3B8;font-size:.875rem;">
                     Используйте боковую панель для авторизации.
                 </span>
@@ -890,13 +878,13 @@ def page_history() -> None:
 
     col_btn, _ = st.columns([1, 4])
     with col_btn:
-        st.button("🔄 Обновить", width="stretch")
+        st.button("Обновить", width="stretch")
 
     result = api_history()
 
     if not result["ok"]:
         st.markdown(
-            f'<div class="recsys-card result-error">❌ {result["data"].get("detail","Ошибка")}</div>',
+            f'<div class="recsys-card result-error">{result["data"].get("detail","Ошибка")}</div>',
             unsafe_allow_html=True,
         )
         return
@@ -912,22 +900,20 @@ def page_history() -> None:
     df = pd.DataFrame(rows)
     df["created_at"] = pd.to_datetime(df["created_at"]).dt.strftime("%Y-%m-%d %H:%M:%S")
 
-    # Summary metrics
     total = len(df)
     ok_cnt = int((df["status"] == "ok").sum())
     avg_dur = float(df["duration_ms"].mean())
     unique_models = int(df["model_key"].nunique())
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("📥 Всего записей", total)
-    c2.metric("✅ Успешных", ok_cnt)
-    c3.metric("⚡ Среднее время", f"{avg_dur:.1f} мс")
-    c4.metric("🤖 Моделей", unique_models)
+    c1.metric("Всего записей", total)
+    c2.metric("Успешных", ok_cnt)
+    c3.metric("Среднее время", f"{avg_dur:.1f} мс")
+    c4.metric("Моделей", unique_models)
 
-    tab_table, tab_charts = st.tabs(["📋 Таблица", "📊 Графики"])
+    tab_table, tab_charts = st.tabs(["Таблица", "Графики"])
 
     with tab_table:
-        # Color status column
         display_cols = ["id", "user_id", "item_id", "model_key", "status", "duration_ms", "created_at"]
         existing_cols = [c for c in display_cols if c in df.columns]
 
@@ -996,12 +982,12 @@ def page_history() -> None:
 
 
 def page_statistics() -> None:
-    st.markdown('<div class="section-header">📊 Аналитика и статистика</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">Аналитика и статистика</div>', unsafe_allow_html=True)
 
     result = api_stats()
     if not result["ok"]:
         st.markdown(
-            f'<div class="recsys-card result-error">❌ {result["data"].get("detail","Ошибка")}</div>',
+            f'<div class="recsys-card result-error">{result["data"].get("detail","Ошибка")}</div>',
             unsafe_allow_html=True,
         )
         return
@@ -1011,21 +997,19 @@ def page_statistics() -> None:
     rc = stats.get("request_characteristics", {})
     by_model = stats.get("by_model", [])
 
-    # Key metrics row
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("📥 Всего запросов", f"{total:,}")
-    c2.metric("⚡ Avg задержка", f"{stats['avg_duration_ms']:.1f} мс")
-    c3.metric("🔥 Max задержка", f"{stats['max_duration_ms']} мс")
-    c4.metric("🤖 Активных моделей", rc.get("distinct_models", 0))
+    c1.metric("Всего запросов", f"{total:,}")
+    c2.metric("Avg задержка", f"{stats['avg_duration_ms']:.1f} мс")
+    c3.metric("Max задержка", f"{stats['max_duration_ms']} мс")
+    c4.metric("Активных моделей", rc.get("distinct_models", 0))
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Gauge + quantiles
     col_gauge, col_quant = st.columns([1, 2])
 
     with col_gauge:
         st.markdown('<div class="recsys-card">', unsafe_allow_html=True)
-        st.markdown("<h3>✅ Success Rate</h3>", unsafe_allow_html=True)
+        st.markdown("<h3>Success Rate</h3>", unsafe_allow_html=True)
         fig_g = _gauge(stats["success_rate"], "")
         st.plotly_chart(fig_g, use_container_width=True, key="gauge_stats")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -1034,7 +1018,7 @@ def page_statistics() -> None:
         quantiles = stats.get("duration_quantiles", {})
         if quantiles:
             st.markdown('<div class="recsys-card">', unsafe_allow_html=True)
-            st.markdown("<h3>⏱️ Перцентили задержки</h3>", unsafe_allow_html=True)
+            st.markdown("<h3>Перцентили задержки</h3>", unsafe_allow_html=True)
             q_df = pd.DataFrame(
                 [{"Перцентиль": k.upper(), "мс": v} for k, v in quantiles.items()]
             )
@@ -1052,10 +1036,9 @@ def page_statistics() -> None:
             st.plotly_chart(fig_q, use_container_width=True, key="bar_quantiles_stats")
             st.markdown("</div>", unsafe_allow_html=True)
 
-    # Model breakdown
     if by_model:
         st.markdown('<div class="recsys-card">', unsafe_allow_html=True)
-        st.markdown("<h3>🤖 Детализация по моделям</h3>", unsafe_allow_html=True)
+        st.markdown("<h3>Детализация по моделям</h3>", unsafe_allow_html=True)
 
         df_m = pd.DataFrame(by_model)
         tab1, tab2, tab3 = st.tabs(["Запросы", "Средняя задержка", "Таблица"])
@@ -1081,7 +1064,7 @@ def page_statistics() -> None:
                 y="avg_duration",
                 color="model_key",
                 color_discrete_sequence=PURPLE_SEQ,
-                text=df_m["avg_duration"].round(1),
+                text=pd.to_numeric(df_m["avg_duration"], errors="coerce").round(1),
                 labels={"model_key": "Модель", "avg_duration": "Avg задержка (мс)"},
             )
             fig_dur.update_traces(texttemplate="%{text} мс", textposition="outside", marker_line_width=0)
@@ -1094,10 +1077,9 @@ def page_statistics() -> None:
 
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # Request characteristics
     if rc:
         st.markdown('<div class="recsys-card">', unsafe_allow_html=True)
-        st.markdown("<h3>📦 Характеристики запросов</h3>", unsafe_allow_html=True)
+        st.markdown("<h3>Характеристики запросов</h3>", unsafe_allow_html=True)
         rc_c1, rc_c2 = st.columns(2)
         rc_c1.metric("Avg размер запроса", f"{rc.get('avg_request_size_bytes', 0):.1f} байт")
         rc_c2.metric("Avg токенов", f"{rc.get('avg_token_count', 0):.1f}")
@@ -1105,11 +1087,11 @@ def page_statistics() -> None:
 
 
 def page_admin() -> None:
-    st.markdown('<div class="section-header">🔑 Панель администратора</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">Панель администратора</div>', unsafe_allow_html=True)
 
     if not st.session_state.token:
         st.markdown(
-            '<div class="recsys-card result-error">🔐 Требуется авторизация.</div>',
+            '<div class="recsys-card result-error">Требуется авторизация.</div>',
             unsafe_allow_html=True,
         )
         return
@@ -1124,7 +1106,7 @@ def page_admin() -> None:
         st.markdown(
             f"""
             <div class="recsys-card result-error">
-                🚫 Доступ запрещён<br>
+                Доступ запрещён<br>
                 <span style="color:#94A3B8;font-size:.875rem;">{detail or code_hint}</span>
             </div>
             """,
@@ -1137,7 +1119,7 @@ def page_admin() -> None:
         f"""
         <div class="recsys-card result-success">
             <div style="font-size:1.1rem;font-weight:700;color:#6EE7B7;margin-bottom:.8rem;">
-                ✅ Административный доступ подтверждён
+                Административный доступ подтверждён
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
                 <div>
@@ -1146,7 +1128,7 @@ def page_admin() -> None:
                 </div>
                 <div>
                     <div style="font-size:.75rem;color:#94A3B8;">Администратор</div>
-                    <div style="font-size:1rem;font-weight:600;color:#E2E8F0;">👤 {data.get('user','')}</div>
+                    <div style="font-size:1rem;font-weight:600;color:#E2E8F0;">{data.get('user','')}</div>
                 </div>
             </div>
         </div>
@@ -1156,16 +1138,16 @@ def page_admin() -> None:
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown('<div class="recsys-card">', unsafe_allow_html=True)
-    st.markdown("<h3>📡 Информация о системе</h3>", unsafe_allow_html=True)
+    st.markdown("<h3>Информация о системе</h3>", unsafe_allow_html=True)
 
     df_info = pd.DataFrame(
         {
             "Параметр": ["API Base URL", "Аутентифицирован", "Роль", "Token"],
             "Значение": [
                 _base(),
-                f"✅ {st.session_state.username}",
-                "👑 Администратор",
-                f"…{st.session_state.token[-20:]}",
+                st.session_state.username,
+                "Администратор",
+                f"...{st.session_state.token[-20:]}",
             ],
         }
     )
@@ -1173,7 +1155,7 @@ def page_admin() -> None:
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown('<div class="recsys-card">', unsafe_allow_html=True)
-    st.markdown("<h3>🧪 Быстрый тест эндпоинтов</h3>", unsafe_allow_html=True)
+    st.markdown("<h3>Быстрый тест эндпоинтов</h3>", unsafe_allow_html=True)
     if st.button("Запустить проверку", width="content"):
         endpoints = [
             ("GET", "/stats", lambda: requests.get(f"{_base()}/stats", timeout=3)),
@@ -1209,17 +1191,17 @@ def page_admin() -> None:
 def main() -> None:
     page = render_sidebar()
 
-    if page == "🏠 Обзор":
+    if page == "Обзор":
         page_overview()
-    elif page == "🔮 Предсказание":
+    elif page == "Предсказание":
         page_predict()
-    elif page == "🎁 Рекомендации":
+    elif page == "Рекомендации":
         page_recommend()
-    elif page == "📜 История":
+    elif page == "История":
         page_history()
-    elif page == "📊 Статистика":
+    elif page == "Статистика":
         page_statistics()
-    elif page == "🔑 Админ":
+    elif page == "Админ":
         page_admin()
 
 

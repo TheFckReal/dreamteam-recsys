@@ -41,6 +41,7 @@ dependencies = [
     "ruff",
     "scikit-learn>=1.7.2",
     "scipy",
+    "psycopg2-binary>=2.9",
     "sqlalchemy>=2.0.45",
     "torch>=2.11.0",
     "tqdm",
@@ -52,6 +53,7 @@ dependencies = [
     "streamlit>=1.45.0",
     "plotly>=5.24.0",
     "requests>=2.32.0",
+    "psycopg2>=2.9.12",
 ]
 requires-python = "==3.13.2"
 
