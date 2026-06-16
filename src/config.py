@@ -25,6 +25,8 @@ VAE_DIR = MODELS_DIR / "vae_artifacts"
 REPORTS_DIR = PROJ_ROOT / "reports"
 FIGURES_DIR = REPORTS_DIR / "figures"
 
+MLFLOW_VAE_EXPERIMENT_NAME = "MultVAE"
+
 # Database
 _db_host = os.getenv("DB_HOST", "localhost")
 _pg_user = os.getenv("POSTGRES_USER") or ""

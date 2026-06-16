@@ -5,12 +5,15 @@ from time import sleep
 from typing import TYPE_CHECKING, Callable, Dict, Literal
 
 from loguru import logger
+from mlflow.artifacts import download_artifacts
 import polars as pl
+from scipy.sparse import load_npz
 
 from src.modeling.interface import InferenceModel
 from src.modeling.sharing import InferenceData
 from src.modeling.vae import MultiVAERecommender
-from src.config import SVD_DIR, IALS_DIR, VAE_DIR
+from src.config import SVD_DIR, IALS_DIR, VAE_DIR, MLFLOW_VAE_EXPERIMENT_NAME
+import mlflow
 
 import pickle
 import numpy as np
@@ -303,19 +306,63 @@ class VAEModel(InferenceModel):
         self._is_loaded = False
         self.artifacts_path = Path(VAE_DIR)
 
+    def load_npz_from_mlflow(self, run_id):
+        user_items_path = download_artifacts(
+            artifact_uri=f"runs:/{run_id}/user_items.npz"
+        )
+
+        return load_npz(user_items_path)
+    
+    def load_model_from_mlflow(self, run_id):
+
+        model_file = download_artifacts(
+            artifact_uri=f"runs:/{run_id}/model"
+        )
+
+        rec = MultiVAERecommender()
+        rec.load(model_file)
+
+        return rec
+    
+    def _load_from_mlflow(self, ):
+        mlflow.set_tracking_uri("http://localhost:5050")
+        exp = mlflow.get_experiment_by_name(MLFLOW_VAE_EXPERIMENT_NAME)
+        if exp is None:
+            return None, None
+        runs = mlflow.search_runs(
+            experiment_ids=[exp.experiment_id],
+            filter_string="tags.stage = 'PRD'",
+            order_by=["start_time DESC"],
+            max_results=1
+        )
+        
+        latest_run_id = runs.iloc[0]["run_id"]
+        model = self.load_model_from_mlflow(latest_run_id)
+        user_items = self.load_npz_from_mlflow(latest_run_id)
+        return model, user_items
+    
+    def _load_from_local(self):
+        rec = MultiVAERecommender()
+        rec.load(self.artifacts_path / "model.pt")
+        user_items = load_npz(self.artifacts_path / "user_items.npz")
+        return rec, user_items
+    
+    @logger.catch(reraise=True)
     def loads(self) -> None:
         if self._is_loaded:
             return
-
         logger.info("Загрузка Mult-VAE модели...")
         try:
-            from scipy.sparse import load_npz
-
-            rec = MultiVAERecommender()
-            rec.load(self.artifacts_path / "model.pt")
-            user_items = load_npz(self.artifacts_path / "user_items.npz")
-            rec.set_user_items(user_items)
-            self.recommender = rec
+            model, user_items = self._load_from_mlflow()
+            if model is None:
+                model, user_items = self._load_from_local()
+                logger.info("Mult-VAE модель загружена из локального хранилища")
+            else:
+                logger.info("Mult-VAE модель загружена из MLFlow")
+            if model is None or user_items is None:
+                raise RuntimeError("Failed to load Mult-VAE model")
+            self.recommender = model
+            self.recommender.set_user_items(user_items)
             self._is_loaded = True
             logger.info("Mult-VAE модель успешно загружена.")
         except Exception as e:
