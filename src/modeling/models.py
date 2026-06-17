@@ -1,18 +1,26 @@
+from __future__ import annotations
+
 import random
 from time import sleep
-from typing import Callable, Dict, Literal
+from typing import TYPE_CHECKING, Callable, Dict, Literal
 
 from loguru import logger
 import polars as pl
 
-from src.modeling.ials import IALSRecommender
 from src.modeling.interface import InferenceModel
 from src.modeling.sharing import InferenceData
-from src.config import SVD_DIR, IALS_DIR
+from src.modeling.vae import MultiVAERecommender
+from src.config import SVD_DIR, IALS_DIR, VAE_DIR
 
 import pickle
 import numpy as np
+import torch
 from pathlib import Path
+
+if TYPE_CHECKING:
+    # IALSRecommender тянет за собой ``implicit``. На Windows системе он не устанавливается напрямую
+    # поэтому импортируем его лениво.
+    from src.modeling.ials import IALSRecommender
 
 # --- Registry Infrastructure ---
 
@@ -48,7 +56,7 @@ def create_model(model_key: str) -> InferenceModel:
     return factory()
 
 
-ModelsType = Literal["dummy", "svd_v1", "ials_v1"]
+ModelsType = Literal["dummy", "svd_v1", "ials_v1", "vae_v1"]
 
 
 # --- Model Implementations ---
@@ -155,8 +163,8 @@ class SVDModel(InferenceModel):
         return float(score)
 
     def _predict_dataframe(self, data: pl.DataFrame) -> pl.Series:
-
         raise NotImplementedError("Batch prediction is not implemented for SVDModel")
+
 
 class IALSModel(InferenceModel):
     def __init__(self):
@@ -172,6 +180,10 @@ class IALSModel(InferenceModel):
 
         logger.info("Загрузка IALS модели...")
         try:
+            # Импорт модуля делается лениво, чтобы остальные модели
+            # (Dummy/SVD/VAE) могли работать без установленного ``implicit``.
+            import src.modeling.ials  # noqa: F401
+
             with open(self.artifacts_path / "model.pkl", "rb") as f:
                 self.recommender = pickle.load(f)
 
@@ -213,17 +225,14 @@ class IALSModel(InferenceModel):
         i_idxs = [rec.item_to_idx.get(iid) for iid in item_ids]
 
         scores = np.zeros(len(user_ids), dtype=np.float32)
-        valid = np.array(
-            [(u is not None and i is not None) for u, i in zip(u_idxs, i_idxs)]
-        )
+        valid = np.array([(u is not None and i is not None) for u, i in zip(u_idxs, i_idxs)])
         if valid.any():
             valid_u = np.array([u for u, v in zip(u_idxs, valid) if v])
             valid_i = np.array([i for i, v in zip(i_idxs, valid) if v])
-            scores[valid] = np.sum(
-                user_factors[valid_u] * item_factors[valid_i], axis=1
-            )
+            scores[valid] = np.sum(user_factors[valid_u] * item_factors[valid_i], axis=1)
 
         return pl.Series("score", scores)
+
 
 @register_model("svd_v1")
 def _create_svd_model() -> InferenceModel:
@@ -233,3 +242,99 @@ def _create_svd_model() -> InferenceModel:
 @register_model("ials_v1")
 def _create_ials_model() -> InferenceModel:
     return IALSModel()
+
+
+class VAEModel(InferenceModel):
+    """Inference-обёртка над Mult-VAE.
+
+    Артефакты загружаются из ``VAE_DIR``:
+    - ``model.pt`` — torch-чекпоинт (state_dict + config + маппинги);
+    - ``user_items.npz`` — sparse user-history (для скоринга и фильтрации
+      уже виденных айтемов).
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.recommender: MultiVAERecommender | None = None
+        self._is_loaded = False
+        self.artifacts_path = Path(VAE_DIR)
+
+    def loads(self) -> None:
+        if self._is_loaded:
+            return
+
+        logger.info("Загрузка Mult-VAE модели...")
+        try:
+            from scipy.sparse import load_npz
+
+            rec = MultiVAERecommender()
+            rec.load(self.artifacts_path / "model.pt")
+            user_items = load_npz(self.artifacts_path / "user_items.npz")
+            rec.set_user_items(user_items)
+            self.recommender = rec
+            self._is_loaded = True
+            logger.info("Mult-VAE модель успешно загружена.")
+        except Exception as e:
+            logger.error(f"Ошибка загрузки Mult-VAE: {e}")
+            raise
+
+    def _ensure_ready(self) -> MultiVAERecommender:
+        if not self._is_loaded or self.recommender is None or self.recommender.model is None:
+            raise RuntimeError("VAE Model is not loaded")
+        return self.recommender
+
+    def _score_pair(self, rec: MultiVAERecommender, user_id: int, item_id: str) -> float:
+        u_idx = rec.user_to_idx.get(user_id)
+        i_idx = rec.item_to_idx.get(item_id)
+        if u_idx is None or i_idx is None:
+            return 0.0
+        assert rec.user_items is not None
+        history = rec.user_items[u_idx].toarray().astype(np.float32)
+        history_t = torch.from_numpy(history)
+        logits = rec.score_batch(history_t)
+        return float(logits[0, i_idx])
+
+    def _predict_single(self, data: InferenceData) -> float:
+        rec = self._ensure_ready()
+        return self._score_pair(rec, data.user_id, str(data.item_id))
+
+    def _predict_dataframe(self, data: pl.DataFrame) -> pl.Series:
+        rec = self._ensure_ready()
+        assert rec.user_items is not None
+
+        user_ids = data["user_id"].to_list()
+        item_ids = [str(i) for i in data["item_id"].to_list()]
+
+        # Группируем запросы по user_id, чтобы вызывать форвард VAE один раз
+        # на пользователя — иначе ``_predict_single`` для каждой пары
+        # пересчитывает энкодер на одной и той же истории.
+        unique_users = list({uid: None for uid in user_ids}.keys())
+        u_idxs = [rec.user_to_idx.get(uid) for uid in unique_users]
+        valid_mask = np.array([u is not None for u in u_idxs])
+        valid_users = [unique_users[i] for i in np.where(valid_mask)[0]]
+        valid_idxs = np.array([u for u in u_idxs if u is not None], dtype=np.int64)
+
+        # Логиты по всем айтемам для валидных пользователей.
+        if len(valid_idxs) > 0:
+            history = rec.user_items[valid_idxs].toarray().astype(np.float32)
+            logits = rec.score_batch(torch.from_numpy(history))
+            user_to_logits = dict(zip(valid_users, logits))
+        else:
+            user_to_logits = {}
+
+        scores = np.zeros(len(user_ids), dtype=np.float32)
+        for k, (uid, iid) in enumerate(zip(user_ids, item_ids)):
+            row = user_to_logits.get(uid)
+            if row is None:
+                continue
+            i_idx = rec.item_to_idx.get(iid)
+            if i_idx is None:
+                continue
+            scores[k] = row[i_idx]
+
+        return pl.Series("score", scores)
+
+
+@register_model("vae_v1")
+def _create_vae_model() -> InferenceModel:
+    return VAEModel()
