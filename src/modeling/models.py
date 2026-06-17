@@ -5,15 +5,12 @@ from time import sleep
 from typing import TYPE_CHECKING, Callable, Dict, Literal
 
 from loguru import logger
-from mlflow.artifacts import download_artifacts
 import polars as pl
-from scipy.sparse import load_npz
 
 from src.modeling.interface import InferenceModel
 from src.modeling.sharing import InferenceData
 from src.modeling.vae import MultiVAERecommender
-from src.config import SVD_DIR, IALS_DIR, VAE_DIR, MLFLOW_VAE_EXPERIMENT_NAME
-import mlflow
+from src.config import SVD_DIR, IALS_DIR, VAE_DIR
 
 import pickle
 import numpy as np
@@ -89,17 +86,6 @@ class DummyModel(InferenceModel):
         if not self._is_loaded:
             raise RuntimeError("Model is not loaded")
         return pl.Series([0.5] * len(data))
-
-    def recommend(self, user_id: int, top_k: int = 15) -> list[tuple[str | int, float]]:
-        """Возвращает синтетические рекомендации (заглушка для демо/тестов)."""
-        if not self._is_loaded:
-            raise RuntimeError("Model is not loaded")
-        # Детерминированные псевдослучайные айтемы, зависящие от user_id,
-        # с убывающим score — достаточно для демонстрации UI.
-        rng = random.Random(user_id)
-        items = [(f"item_{rng.randint(1000, 9999)}", round(rng.uniform(0.3, 1.0), 4)) for _ in range(top_k)]
-        items.sort(key=lambda x: x[1], reverse=True)
-        return items
 
     def loads(self) -> None:
         """Simulates loading weights from disk/network."""
@@ -179,25 +165,6 @@ class SVDModel(InferenceModel):
     def _predict_dataframe(self, data: pl.DataFrame) -> pl.Series:
         raise NotImplementedError("Batch prediction is not implemented for SVDModel")
 
-    def recommend(self, user_id: int, top_k: int = 15) -> list[tuple[str | int, float]]:
-        """Top-k рекомендации брутфорсом: score = item_features @ user_vec."""
-        if not self._is_loaded:
-            raise RuntimeError("SVD Model is not loaded")
-
-        u_idx = self.user_to_idx.get(user_id)
-        if u_idx is None:
-            raise ValueError(f"user_id={user_id} отсутствует в обучающих данных модели")
-
-        u_vec = self.user_features[u_idx]
-        scores_all = np.asarray(self.item_features @ u_vec).ravel()
-
-        k = min(top_k, scores_all.shape[0])
-        top_idx = np.argpartition(-scores_all, k - 1)[:k]
-        top_idx = top_idx[np.argsort(-scores_all[top_idx])]
-
-        idx_to_item = {v: key for key, v in self.item_to_idx.items()}
-        return [(idx_to_item[int(i)], float(scores_all[int(i)])) for i in top_idx]
-
 
 class IALSModel(InferenceModel):
     def __init__(self):
@@ -266,20 +233,6 @@ class IALSModel(InferenceModel):
 
         return pl.Series("score", scores)
 
-    def recommend(self, user_id: int, top_k: int = 15) -> list[tuple[str | int, float]]:
-        """Top-k рекомендации через implicit.recommend (filter_already_liked_items=True)."""
-        rec = self._ensure_ready()
-
-        u_idx = rec.user_to_idx.get(user_id)
-        if u_idx is None:
-            raise ValueError(f"user_id={user_id} отсутствует в обучающих данных модели")
-
-        item_idxs, scores = rec.recommend_batch(np.array([u_idx]), top_k=top_k)
-        return [
-            (rec.idx_to_item[int(idx)], float(score))
-            for idx, score in zip(item_idxs[0], scores[0])
-        ]
-
 
 @register_model("svd_v1")
 def _create_svd_model() -> InferenceModel:
@@ -306,63 +259,19 @@ class VAEModel(InferenceModel):
         self._is_loaded = False
         self.artifacts_path = Path(VAE_DIR)
 
-    def load_npz_from_mlflow(self, run_id):
-        user_items_path = download_artifacts(
-            artifact_uri=f"runs:/{run_id}/user_items.npz"
-        )
-
-        return load_npz(user_items_path)
-    
-    def load_model_from_mlflow(self, run_id):
-
-        model_file = download_artifacts(
-            artifact_uri=f"runs:/{run_id}/model"
-        )
-
-        rec = MultiVAERecommender()
-        rec.load(model_file)
-
-        return rec
-    
-    def _load_from_mlflow(self, ):
-        mlflow.set_tracking_uri("http://localhost:5050")
-        exp = mlflow.get_experiment_by_name(MLFLOW_VAE_EXPERIMENT_NAME)
-        if exp is None:
-            return None, None
-        runs = mlflow.search_runs(
-            experiment_ids=[exp.experiment_id],
-            filter_string="tags.stage = 'PRD'",
-            order_by=["start_time DESC"],
-            max_results=1
-        )
-        
-        latest_run_id = runs.iloc[0]["run_id"]
-        model = self.load_model_from_mlflow(latest_run_id)
-        user_items = self.load_npz_from_mlflow(latest_run_id)
-        return model, user_items
-    
-    def _load_from_local(self):
-        rec = MultiVAERecommender()
-        rec.load(self.artifacts_path / "model.pt")
-        user_items = load_npz(self.artifacts_path / "user_items.npz")
-        return rec, user_items
-    
-    @logger.catch(reraise=True)
     def loads(self) -> None:
         if self._is_loaded:
             return
+
         logger.info("Загрузка Mult-VAE модели...")
         try:
-            model, user_items = self._load_from_mlflow()
-            if model is None:
-                model, user_items = self._load_from_local()
-                logger.info("Mult-VAE модель загружена из локального хранилища")
-            else:
-                logger.info("Mult-VAE модель загружена из MLFlow")
-            if model is None or user_items is None:
-                raise RuntimeError("Failed to load Mult-VAE model")
-            self.recommender = model
-            self.recommender.set_user_items(user_items)
+            from scipy.sparse import load_npz
+
+            rec = MultiVAERecommender()
+            rec.load(self.artifacts_path / "model.pt")
+            user_items = load_npz(self.artifacts_path / "user_items.npz")
+            rec.set_user_items(user_items)
+            self.recommender = rec
             self._is_loaded = True
             logger.info("Mult-VAE модель успешно загружена.")
         except Exception as e:
@@ -424,20 +333,6 @@ class VAEModel(InferenceModel):
             scores[k] = row[i_idx]
 
         return pl.Series("score", scores)
-
-    def recommend(self, user_id: int, top_k: int = 15) -> list[tuple[str | int, float]]:
-        """Top-k рекомендации Mult-VAE с фильтрацией уже виденных айтемов."""
-        rec = self._ensure_ready()
-
-        u_idx = rec.user_to_idx.get(user_id)
-        if u_idx is None:
-            raise ValueError(f"user_id={user_id} отсутствует в обучающих данных модели")
-
-        item_idxs, scores = rec.recommend_batch(np.array([u_idx]), top_k=top_k)
-        return [
-            (rec.idx_to_item[int(idx)], float(score))
-            for idx, score in zip(item_idxs[0], scores[0])
-        ]
 
 
 @register_model("vae_v1")
