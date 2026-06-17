@@ -5,7 +5,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from loguru import logger
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.modeling.models import ModelsType
 from src.modeling.sharing import InferenceData
@@ -43,6 +43,30 @@ class PredictionResponse(BaseModel):
     item_id: Union[str, int]
     score: float
     model_key: ModelsType
+
+
+class RecommendRequest(BaseModel):
+    """DTO for top-k recommendation request."""
+
+    user_id: int
+    model_key: ModelsType
+    top_k: int = Field(default=15, ge=1, le=100)
+
+
+class RecommendationItem(BaseModel):
+    """One entry of the top-k recommendation list."""
+
+    rank: int
+    item_id: Union[str, int]
+    score: float
+
+
+class RecommendationResponse(BaseModel):
+    """DTO for top-k recommendation response."""
+
+    user_id: int
+    model_key: ModelsType
+    recommendations: list[RecommendationItem]
 
 
 # DTO для истории
@@ -138,14 +162,46 @@ def predict(
 
     try:
         result = prediction_service.make_prediction(data, model_input.model_key)
+    except ValueError as e:
+        logger.warning(f"Prediction value error: {e}")
+        return JSONResponse(status_code=404, content={"detail": str(e)})
     except Exception as e:
         logger.error(f"Failed to make prediction: {e}")
         return JSONResponse(
-            status_code=403,
+            status_code=500,
             content={"detail": "модель не смогла обработать данные"},
         )
 
     return PredictionResponse(**result)
+
+
+@app.post("/recommend", response_model=RecommendationResponse)
+def recommend(
+    payload: RecommendRequest,
+    prediction_service: PredictionServiceDep,
+):
+    """
+    Эндпоинт для получения top-k рекомендаций для пользователя.
+    """
+    try:
+        result = prediction_service.make_recommendations(
+            payload.user_id, payload.model_key, payload.top_k
+        )
+    except ValueError as e:
+        # user_id отсутствует в обучающих данных модели
+        logger.warning(f"User not found for recommendations: {e}")
+        return JSONResponse(
+            status_code=404,
+            content={"detail": str(e)},
+        )
+    except Exception as e:
+        logger.error(f"Failed to make recommendations: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "модель не смогла построить рекомендации"},
+        )
+
+    return RecommendationResponse(**result)
 
 
 @app.get("/admin/info")
